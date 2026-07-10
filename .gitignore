@@ -1,0 +1,6 @@
+data/
+*.pth
+modello_migliore.pth
+modello_heatmap.pth
+modello_refine.pth
+export_model.py
