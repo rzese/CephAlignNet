@@ -2,15 +2,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-MAX_OFFSET = 0.008   # reduced from 0.015: max correction ~1.9mm instead of 3.6mm,
-                     # prevents Stage 2 from pushing already-good points outside the 2mm threshold
+MAX_OFFSET = 0.008   
 
-# Landmarks that Stage 2 is applied to: only the ones with historical MRE > 1.7mm.
-# The others (A, Pog, Ar, Go, Co, etc.) are already accurate — better not to touch them.
-# Indices: 5=Or, 9=S, 12=Gn, 14=Po, 15=LPM, 16=LIT, 17=LMT, 18=UPM
-# 19=UIT, 20=UIA, 21=LIA  <- difficult dental landmarks
-# 22=Ls(UL), 23=Li(LL), 24=Pog`, 25=Sn  <- soft tissue (Aariz/Tracciati only, all difficult)
-REFINE_LANDMARK_MASK = {5, 9, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}
+try:
+    from src.landmark_stats import REFINE_LANDMARK_MASK
+except ImportError:
+    try: 
+        from landmark_stats import REFINE_LANDMARK_MASK
+    except ImportError:
+        print("[WARN] src/landmark_stats.py not found — using fallback "
+              "REFINE_LANDMARK_MASK (run analizza_difficolta_landmark.py to generate it from the data).")
+        
+        REFINE_LANDMARK_MASK = {5, 9, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}
 
 # Output size of the ROI-align crop (square)
 ROI_OUTPUT_SIZE = 32

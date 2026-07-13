@@ -6,37 +6,43 @@ import torch
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 
-SIGMA_PER_LANDMARK = {
-    # Anatomically ambiguous landmarks -> wider sigma = more robust heatmap
-    5:  5.0,   # Or  
-    9:  6.5,   # S   
-    10: 5.5,   # Ar
-    11: 5.5,   # Co
-    14: 6.0,   # Po  
-    15: 6.0,   # LPM 
-    18: 6.0,   # UPM
-    19: 5.0,   # UIT 
-    20: 5.5,   # UIA  
-    21: 5.5,   # LIA 
-}
+try:
+    from src.landmark_stats import SIGMA_PER_LANDMARK, PESI_LANDMARK
+except ImportError:
+    try:
+        from landmark_stats import SIGMA_PER_LANDMARK, PESI_LANDMARK
+    except ImportError:
+        print("[WARN] src/landmark_stats.py non trovato — uso valori di fallback "
+              "(esegui analizza_difficolta_landmark.py per generarli dai dati).")
 
-PESI_LANDMARK = {
-    # Difficult landmarks -> higher penalty in the loss
-    5:  2.0,   # Or
-    9:  3.5,   # S
-    10: 2.0,   # Ar
-    11: 2.0,   # Co
-    12: 2.5,   # Gn
-    13: 2.0,   # Go
-    14: 3.0,   # Po
-    15: 3.5,   # LPM
-    16: 2.0,   # LIT
-    17: 2.0,   # LMT
-    18: 3.0,   # UPM
-    19: 2.0,   # UIT 
-    20: 2.5,   # UIA 
-    21: 2.5,   # LIA 
-}
+        SIGMA_PER_LANDMARK = {
+            5:  5.0,   # Or
+            9:  6.5,   # R  
+            10: 5.5,   # S  
+            11: 5.5,   # Ar 
+            14: 6.0,   # Go 
+            15: 6.0,   # Po 
+            18: 6.0,   # LMT 
+            19: 5.0,   # UIT
+            20: 5.5,   # UIA
+            21: 5.5,   # LIA
+        }
+        PESI_LANDMARK = {
+            5:  2.0,   # Or
+            9:  3.5,   # R  
+            10: 2.0,   # S  
+            11: 2.0,   # Ar 
+            12: 2.5,   # Co 
+            13: 2.0,   # Gn 
+            14: 3.0,   # Go 
+            15: 3.5,   # Po 
+            16: 2.0,   # LPM 
+            17: 2.0,   # LIT 
+            18: 3.0,   # LMT 
+            19: 2.0,   # UIT
+            20: 2.5,   # UIA
+            21: 2.5,   # LIA
+        }
 
 # Resolution the offsets are trained at (must match heatmap_size in CONFIG)
 HEATMAP_TRAIN_SIZE = 256
@@ -48,7 +54,6 @@ def regression_voting(output, n_landmarks, R=40, target_size=HEATMAP_TRAIN_SIZE)
     n_landmarks: int
     R: voting radius in pixels at target_size resolution (default 40 @ 256px)
     target_size: resolution the model was trained at.
-
     Returns normalized coordinates [B, N, 2], obtained by having the top
     heatmap activations "vote" for the landmark location using their
     predicted local offsets (DSNT/offset-voting style decoding).
@@ -220,23 +225,23 @@ def geometric_consistency_loss(pred_pts, mask):
     landmarks.
 
     Enforced anatomical relationships:
-      - Gn (12) must be close to the midpoint of Me (3) and Pog (6)
-      - S (9) must be to the left (smaller x) of N (4) on a right-facing
+      - Gn (13) must be close to the midpoint of Me (3) and Pog (6)
+      - S (10) must be to the left (smaller x) of N (4) on a right-facing
         lateral cephalogram
       - Me (3) must be lower (larger y) than B (2)
       - B (2) must be lower than A (0)
       - ANS (1) must be to the right (larger x) of PNS (7)
-      - Co (11) must be higher (smaller y) than Go (13)
+      - Co (12) must be higher (smaller y) than Go (14)
       - UIT (19) must be higher (smaller y) than UIA (20)  
-      - LIT (16) must be lower (larger y) than LIA (21)   
+      - LIT (17) must be lower (larger y) than LIA (21)   
     """
     B    = pred_pts.shape[0]
     loss = torch.tensor(0.0, device=pred_pts.device)
     n_terms = 0
 
-    IDX = {"A": 0, "ANS": 1, "B": 2, "Me": 3, "N": 4, "Pog": 6, "PNS": 7, "S": 9,
-           "Co": 11, "Gn": 12, "Go": 13,
-           "LIT": 16, "UIT": 19, "UIA": 20, "LIA": 21}
+    IDX = {"A": 0, "ANS": 1, "B": 2, "Me": 3, "N": 4, "Pog": 6, "PNS": 7, "S": 10,
+           "Co": 12, "Gn": 13, "Go": 14,
+           "LIT": 17, "UIT": 19, "UIA": 20, "LIA": 21}
 
     for b in range(B):
         pts = pred_pts[b]
@@ -299,10 +304,11 @@ def zoom_crop_augmenta(img, pts, mask, zoom_factor=2.2):
     on the average position of the historically difficult landmarks
     (index list below) and resizes it back to the original resolution,
     giving the model extra local detail where it usually makes mistakes.
-    Difficult landmarks by index: 5=Or, 9=S, 14=Po, 15=LPM, 18=UPM,
+    Difficult landmarks by index: 5=Or, 10=S, 15=Po, 16=LPM,
     19=UIT, 20=UIA, 21=LIA
     """
-    HARD = [5, 9, 14, 15, 18, 19, 20, 21]   # added UIT, UIA, LIA
+
+    HARD = [5, 10, 15, 16, 19, 20, 21]
     C, H, W = img.shape
 
     valid_pts = []

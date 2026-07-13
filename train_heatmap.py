@@ -193,6 +193,24 @@ def main():
                 print(f"Early stopping at epoch {epoca}")
                 break
 
+    # ── Automatic generation of src/landmark_stats.py ──────────────────
+    # Computes the per-landmark MRE of the checkpoint just saved and regenerates
+    # REFINE_LANDMARK_MASK / PESI_LANDMARK / SIGMA_PER_LANDMARK, so there is no
+    # need to run analyze_landmark_difficulty.py by hand anymore. If this is
+    # the very first training run, the file does not exist yet and this
+    # training used the default (fallback) values — the values generated
+    # here are ready for a subsequent fine-tuning retrain.
+    try:
+        from src.analiz_land import genera_landmark_stats
+        print("\nAutomatically generating src/landmark_stats.py from the best checkpoint...")
+        genera_landmark_stats(stage1_path=CONFIG["save_path"],
+                               aariz_path=CONFIG["aariz_path"],
+                               isbi_path=CONFIG["isbi_path"],
+                               device=device)
+    except Exception as e:
+        print(f"[WARN] Automatic generation of landmark_stats.py failed ({e}). "
+              f"You can re-run it by hand with: python analyze_landmark_difficulty.py")
+
 
 if __name__ == "__main__":
     main()
