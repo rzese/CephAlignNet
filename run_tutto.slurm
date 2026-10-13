@@ -21,15 +21,11 @@
 #SBATCH --job-name=ceph_tutto
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
+#SBATCH --partition=gpu_H100
 #SBATCH --gres=gpu:1
-#SBATCH --mem=48G
-#SBATCH --time=7-00:00:00
-# ↓ adapt to your cluster (remove one '#' to enable)
-##SBATCH --partition=NOME_PARTIZIONE
-##SBATCH --account=NOME_ACCOUNT
+#SBATCH --mem=40G 
+#SBATCH --time=24:00:00
+
 
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
