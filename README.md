@@ -28,12 +28,33 @@ augmentation (rotations, horizontal flip, brightness/contrast jitter) and
 its output is optionally corrected by Stage 2, giving the final landmark
 coordinates on the original image.
 
+## Heatmap modes and uncertainty
+
+`CONFIG["heatmap_mode"]` in `train_heatmap.py` selects how Stage 1 heatmaps
+are trained (the choice is stored in the checkpoint):
+
+- `"fixed"` — fixed-sigma Gaussian targets + Adaptive Wing loss (original).
+- `"learned_sigma"` — per-landmark anisotropic target sigma trained together
+  with the network (Payer et al., 2020).
+- `"probabilistic"` — the heatmap is the logit map of a spatial distribution,
+  trained with the negative log-likelihood of the ground truth.
+
+`evaluate_refine.py` measures how well the heatmap spread and the TTA spread
+predict the actual error (Spearman, error per quintile) and writes
+per-landmark conformal factors to `calibrazione_incertezza.json`;
+`predict_heatmap.py` uses them to report a radius that contains the true
+point with ~90% probability. Details (in Italian): `DOCUMENTAZIONE.md`.
+
+Unit tests (CPU, synthetic data): `PYTHONPATH=. python Test/test_unita.py`.
+
 ## Repository structure
 
 | File | Role |
 |---|---|
 | `model_hrnet.py` | Stage 1 model: HRNet-W48 backbone + multi-scale fusion head. Outputs a heatmap and two offset channels per landmark, plus the fused feature map used by Stage 2. |
 | `model_refine.py` | Stage 2 model: attention-based CNN that regresses a bounded (x, y) correction from a small ROI crop of the Stage 1 feature map. Defines `MAX_OFFSET` and `REFINE_LANDMARK_MASK` (which landmarks get refined). |
+| `incertezza.py` | Learnable heatmap sigma (`SigmaAddestrabile`), heatmap/TTA covariance, uncertainty calibration and evaluation. |
+| `inferenza.py` | Code shared by the scripts: checkpoint loading, decoding, TTA, Stage 2 application, collate and mm errors. |
 | `heatmap_utils.py` | Shared utilities: Gaussian heatmap generation, heatmap/offset losses (Adaptive Wing loss, combined loss), soft-argmax and voting decoders, the training-time augmentation pipeline (`augmenta`), a hard-landmark zoom-crop augmentation, and a geometric-consistency loss that penalizes anatomically implausible landmark configurations. |
 | `dataset.py` | `AarizDataset` — loads the public **Aariz** dataset (image + JSON annotations), averaging Senior/Junior orthodontist annotations when both are available. |
 | `dataset_isbi.py` | `ISBIDataset` — loads the public **Cepha400 / ISBI 2015** dataset (image + two annotator text files), remapping its 19 landmarks to this project's 26-landmark indexing. |

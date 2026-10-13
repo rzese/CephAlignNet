@@ -17,7 +17,7 @@ def test_visualizer():
     print(f"Dataset caricato. Immagini trovate: {len(dataset)}")
 
     #primo elemento
-    img_tensor, landmarks = dataset[0]
+    img_tensor, landmarks, _ = dataset[0]
     
     #Conversione per visualizzare con OpenCV
     #tensor [1, H, W] a array numpy [H, W] e riportiamo i valori a 0-255

@@ -3,4 +3,5 @@ data/
 modello_migliore.pth
 modello_heatmap.pth
 modello_refine.pth
-export_model.py
+export_model.py__pycache__/
+calibrazione_incertezza.json

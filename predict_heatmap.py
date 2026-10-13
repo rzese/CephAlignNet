@@ -1,12 +1,8 @@
-import torch, cv2, numpy as np, sys, os, math, random
-import torch.nn.functional as F
-import torchvision.transforms.functional as TF
-from torchvision.ops import roi_align
+import torch, cv2, numpy as np, sys, os, json
 
-from src.model_hrnet import HRNetLandmark
-from src.model_refine import (RefinementNet, MAX_OFFSET, ROI_OUTPUT_SIZE,
-                               ROI_HALF_SIZE, REFINE_LANDMARK_MASK)
-from src.heatmap_utils import heatmap_a_coordinate, regression_voting, HEATMAP_TRAIN_SIZE
+from src.heatmap_utils import HEATMAP_TRAIN_SIZE
+from src.inferenza import carica_stage1, carica_stage2, predici_con_tta, applica_stage2
+from src.incertezza import momenti_heatmap, cov_in_mm, sigma_radiale
 
 USE_VOTING = False   # False = soft-argmax (stable), True = regression voting
 
@@ -20,145 +16,52 @@ CONFIG = {
     "usa_tta":        True,
     "tta_angoli":     [-5.0, -2.5, 0.0, 2.5, 5.0],
     "hrnet_channels": [192, 384, 768, 1536],
+    # Pixel size of the input radiograph (mm/px), to express the uncertainty in mm.
+    # Can also be given as the 2nd command-line argument.
+    "pixel_size_mm":  0.1,
+    # Written by evaluate_refine.py; turns the uncertainty into a radius that
+    # contains the true point with the calibrated probability (e.g. 90%)
+    "calibrazione_path": "calibrazione_incertezza.json",
+    "fonte_incertezza":  "totale",    # "heatmap" | "tta" | "totale"
+    "mostra_finestra":   True,        # False on servers without a display
+    "salva_overlay":     True,        # saves <image>_pred.png next to the image
 }
 
 NOMI_LANDMARK = [
     "A","ANS","B","Me","N","Or","Pog","PNS","Pn","R",
     "S","Ar","Co","Gn","Go","Po","LPM","LIT","LMT",
-    "UIT","UIA","LIA",   
-    "Ls","Li","Pog`","Sn",  
+    "UIT","UIA","LIA",
+    "Ls","Li","Pog`","Sn",
 ]
-
-
-def carica_stage1(config, device):
-    """
-    Loads the Stage 1 checkpoint, trying several possible HRNet channel
-    configurations until one matches the saved weights (handles checkpoints
-    saved with a different backbone/channel setup).
-    """
-    ckpt = torch.load(config["stage1_path"], map_location=device, weights_only=False)
-    for canali in [config["hrnet_channels"], [192, 384, 768, 1536], [128, 256, 512, 1024],
-                   [64, 128, 256, 512, 1024], [64, 128, 256, 512], [32, 64, 128, 256]]:
-        try:
-            model = HRNetLandmark(num_landmarks=config["num_landmarks"],
-                                  pretrained=False, hrnet_channels=canali).to(device)
-            model.load_state_dict(ckpt["model_state_dict"], strict=True)
-            model.eval()
-            backbone = ckpt.get("backbone", "hrnet_w?")
-            print(f"Stage 1 loaded ({backbone}, channels={canali}, "
-                  f"epoch={ckpt.get('epoca','?')}, val_loss={ckpt.get('val_loss',0):.6f})")
-            return model
-        except RuntimeError as e:
-            if "size mismatch" in str(e) or "Unexpected key" in str(e):
-                continue
-            raise
-    raise RuntimeError("Could not load Stage 1.")
 
 
 def carica_modelli(config, device):
     """Loads both Stage 1 (heatmap) and, if available and enabled, Stage 2
     (refinement) models and returns them ready for inference (eval mode)."""
     stage1 = carica_stage1(config, device)
-    stage2 = None
-    if config["usa_stage2"] and os.path.exists(config["stage2_path"]):
-        ckpt2 = torch.load(config["stage2_path"], map_location=device, weights_only=False)
-        in_channels = ckpt2.get("in_channels", 192)
-        stage2 = RefinementNet(num_landmarks=config["num_landmarks"],
-                               in_channels=in_channels).to(device)
-        stage2.load_state_dict(ckpt2["model_state_dict"])
-        stage2.eval()
-        print(f"Stage 2 loaded — in_ch={in_channels}, "
-              f"epoch={ckpt2.get('epoca','?')}, val_loss={ckpt2.get('val_loss',0):.6f})")
-    else:
+    stage2 = carica_stage2(config["stage2_path"], config["num_landmarks"], device) if config["usa_stage2"] else None
+    if stage2 is None:
         print("Stage 2 not available.")
     return stage1, stage2
 
 
-def decodifica(pred_raw, config, device):
-    """Decodes raw Stage 1 output into normalized (x, y) coordinates, using
-    either regression voting or soft-argmax depending on USE_VOTING."""
-    ts = config["heatmap_size"]
-    if pred_raw.shape[2] != ts or pred_raw.shape[3] != ts:
-        pred_raw = F.interpolate(pred_raw, size=(ts, ts),
-                                 mode='bilinear', align_corners=False)
-    n = config["num_landmarks"]
-    if USE_VOTING:
-        return regression_voting(pred_raw, n, target_size=ts)[0]
-    else:
-        return heatmap_a_coordinate(pred_raw[:, 0::3])[0]
-
-
-def _de_ruota(coords, angle_deg):
-    """Rotates predicted coordinates back by -angle_deg around the image
-    center, undoing a TTA rotation applied to the input image."""
-    theta = math.radians(angle_deg)
-    cos_t, sin_t = math.cos(theta), math.sin(theta)
-    out = coords.clone()
-    cx = coords[:, 0] - 0.5; cy = coords[:, 1] - 0.5
-    out[:, 0] = cos_t * cx - sin_t * cy + 0.5
-    out[:, 1] = sin_t * cx + cos_t * cy + 0.5
-    return out
-
-
-def predici_tta(stage1, img_tensor, config, device):
-    """
-    Test-time augmentation: averages Stage 1 predictions across several
-    rotated versions of the input, a horizontal flip, and two random
-    brightness/contrast variants, to obtain more robust coordinates.
-    Also returns the fused feature map (x_out) from the un-augmented
-    (angle=0) forward pass, for use by Stage 2.
-    """
-    tutte = []; x_out_orig = None
-    angoli = config.get("tta_angoli", [-5.0, -2.5, 0.0, 2.5, 5.0])
-    with torch.no_grad():
-        for angle in angoli:
-            if abs(angle) < 0.01:
-                pred_raw, x_out_orig = stage1(img_tensor)
-                tutte.append(decodifica(pred_raw, config, device))
-            else:
-                img_rot = TF.rotate(img_tensor, angle)
-                pred_raw_rot, _ = stage1(img_rot)
-                tutte.append(_de_ruota(decodifica(pred_raw_rot, config, device), -angle))
-        img_flip = TF.hflip(img_tensor)
-        pred_raw_flip, _ = stage1(img_flip)
-        pred_flip = decodifica(pred_raw_flip, config, device).clone()
-        pred_flip[:, 0] = 1.0 - pred_flip[:, 0]
-        tutte.append(pred_flip)
-        for _ in range(2):
-            img_var = TF.adjust_brightness(img_tensor, random.uniform(0.90, 1.10))
-            img_var = TF.adjust_contrast(img_var, random.uniform(0.90, 1.10))
-            pred_raw_var, _ = stage1(img_var)
-            tutte.append(decodifica(pred_raw_var, config, device))
-    return torch.stack(tutte).mean(dim=0), x_out_orig
-
-
-def applica_stage2(stage2, x_out, coords_norm, config, device):
-    """
-    Applies the Stage 2 refinement network to the landmarks in
-    REFINE_LANDMARK_MASK: crops a small ROI from x_out around each Stage 1
-    prediction, regresses an (x, y) offset, and applies it only if it stays
-    within a safety guard (1.2x MAX_OFFSET) to avoid large, unstable jumps.
-    """
-    _, _, H_feat, W_feat = x_out.shape
-    out = coords_norm.clone(); guardia = MAX_OFFSET * 1.2
-    with torch.no_grad():
-        for i in range(coords_norm.shape[0]):
-            if i not in REFINE_LANDMARK_MASK:
-                continue
-            cx = coords_norm[i, 0].item(); cy = coords_norm[i, 1].item()
-            cx_f = cx * W_feat; cy_f = cy * H_feat
-            x1 = max(0.0, cx_f - ROI_HALF_SIZE); y1 = max(0.0, cy_f - ROI_HALF_SIZE)
-            x2 = min(float(W_feat), cx_f + ROI_HALF_SIZE)
-            y2 = min(float(H_feat), cy_f + ROI_HALF_SIZE)
-            rois = torch.tensor([[0, x1, y1, x2, y2]], dtype=torch.float32, device=device)
-            crop = roi_align(x_out, rois, output_size=ROI_OUTPUT_SIZE,
-                             spatial_scale=1.0, aligned=True)
-            idx    = torch.tensor([i], dtype=torch.long, device=device)
-            offset = stage2(crop, idx)[0]
-            dx, dy = offset[0].item(), offset[1].item()
-            if abs(dx) <= guardia and abs(dy) <= guardia:
-                out[i, 0] = cx + dx; out[i, 1] = cy + dy
-    return out
+def carica_calibrazione(config, stage1):
+    """Per-landmark conformal factors from evaluate_refine.py, or None."""
+    path = config.get("calibrazione_path")
+    if not path or not os.path.exists(path):
+        return None
+    with open(path) as f:
+        cal = json.load(f)
+    if cal.get("heatmap_mode") != stage1.heatmap_mode or cal.get("stage1_path") != config["stage1_path"]:
+        print("[WARN] the calibration file was computed for another Stage 1 checkpoint: ignored. "
+              "Re-run evaluate_refine.py.")
+        return None
+    if cal.get("usa_tta", True) != config["usa_tta"]:
+        print("[WARN] calibration computed with a different TTA setting: radii may be off.")
+    fonte = config.get("fonte_incertezza", "totale")
+    if fonte not in cal["fonti"]:
+        return None
+    return {"copertura": cal["copertura"], "q": cal["fonti"][fonte]["q"], "fonte": fonte}
 
 
 def predici(stage1, stage2, img_path, device, config):
@@ -167,7 +70,8 @@ def predici(stage1, stage2, img_path, device, config):
     the training resolution, runs Stage 1 (with or without TTA), optionally
     refines the result with Stage 2, and rescales the coordinates back to
     the original image size.
-    Returns (original_grayscale_image, landmarks_in_pixels).
+    Returns (original_grayscale_image, landmarks_in_pixels [N, 2],
+    uncertainty dict with the per-landmark sigmas in mm and heatmap peaks).
     """
     img_orig = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     if img_orig is None:
@@ -176,22 +80,33 @@ def predici(stage1, stage2, img_path, device, config):
     img_resized = cv2.resize(img_orig, (config["img_size"], config["img_size"]))
     img_tensor  = (torch.from_numpy(img_resized).float()
                    .unsqueeze(0).unsqueeze(0) / 255.0).to(device)
-    if config["usa_tta"]:
-        coords_norm, x_out = predici_tta(stage1, img_tensor, config, device)
-    else:
-        with torch.no_grad():
-            pred_raw, x_out = stage1(img_tensor)
-        coords_norm = decodifica(pred_raw, config, device)
-    if stage2 is not None and x_out is not None:
-        coords_norm = applica_stage2(stage2, x_out, coords_norm, config, device)
-    coords = coords_norm.cpu().numpy()
+
+    out = predici_con_tta(stage1, img_tensor, config, usa_voting=USE_VOTING)
+    coords_norm = out["coords"]
+    if stage2 is not None:
+        coords_norm = applica_stage2(stage2, out["x_out"], coords_norm)
+
+    dims = torch.tensor([[w_orig, h_orig]], dtype=torch.float32, device=device)
+    ps   = torch.tensor([config["pixel_size_mm"]], dtype=torch.float32, device=device)
+    _, cov_hm, picco = momenti_heatmap(out["pred_raw"][:, 0::3], stage1.heatmap_mode, stage1.griglia)
+    incertezza = {
+        "heatmap": sigma_radiale(cov_in_mm(cov_hm, dims, ps))[0].cpu().numpy(),
+        "tta":     sigma_radiale(cov_in_mm(out["cov_tta"], dims, ps))[0].cpu().numpy(),
+        "picco":   picco[0].cpu().numpy(),
+    }
+    incertezza["totale"] = np.sqrt(incertezza["heatmap"] ** 2 + incertezza["tta"] ** 2)
+
+    coords = coords_norm[0].cpu().numpy()
     coords[:, 0] *= w_orig; coords[:, 1] *= h_orig
-    return img_orig, coords
+    return img_orig, coords, incertezza
 
 
-def disegna_landmark(img_gray, landmarks):
-    """Draws the predicted landmarks (with their names) over the image and
-    displays it in an OpenCV window, scaled down if larger than 1000px."""
+def disegna_landmark(img_gray, landmarks, raggi_px=None, titolo="Landmark prediction",
+                     salva_in=None, mostra=True):
+    """Draws the predicted landmarks (with their names) over the image and,
+    if given, a circle of radius raggi_px[i] around each one (calibrated
+    uncertainty). Optionally saves the result and/or displays it in an
+    OpenCV window, scaled down if larger than 1000px."""
     img_vis = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
     h, w    = img_vis.shape[:2]
     raggio  = max(6, int(min(h, w) / 150))
@@ -201,35 +116,66 @@ def disegna_landmark(img_gray, landmarks):
         x, y = int(pt[0]), int(pt[1])
         if not (0 <= x < w and 0 <= y < h):
             continue
+        if raggi_px is not None and np.isfinite(raggi_px[i]):
+            cv2.circle(img_vis, (x, y), int(round(raggi_px[i])), (60, 60, 255), spessore, cv2.LINE_AA)
         cv2.circle(img_vis, (x, y), raggio, (0, 220, 255), -1)
         cv2.circle(img_vis, (x, y), raggio, (0, 0, 0), 1)
         nome = NOMI_LANDMARK[i] if i < len(NOMI_LANDMARK) else str(i + 1)
         cv2.putText(img_vis, nome, (x + raggio + 3, y + 4),
                     cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 220, 255),
                     spessore, cv2.LINE_AA)
-    scala     = min(1.0, 1000 / max(h, w))
-    img_show  = cv2.resize(img_vis, (int(w * scala), int(h * scala)))
-    cv2.imshow("Landmark prediction", img_show)
-    print("Press any key to close..."); cv2.waitKey(0); cv2.destroyAllWindows()
+    if salva_in:
+        cv2.imwrite(salva_in, img_vis)
+        print(f"Overlay saved to {salva_in}")
+    if mostra:
+        scala     = min(1.0, 1000 / max(h, w))
+        img_show  = cv2.resize(img_vis, (int(w * scala), int(h * scala)))
+        cv2.imshow(titolo, img_show)
+        print("Press any key to close..."); cv2.waitKey(0); cv2.destroyAllWindows()
 
 
 def main():
     """CLI entry point: predicts landmarks for a single image (path given
-    as the first argument, or a default sample) and shows/prints the result."""
+    as the first argument, or a default sample; optional 2nd argument: pixel
+    size in mm/px) and shows/prints the result with its uncertainty."""
     img_path = "data/Aariz/test/Cephalograms/cks2ip8fp29yl0yuf6ry9266i.png"
     if len(sys.argv) > 1:
         img_path = sys.argv[1]
+    if len(sys.argv) > 2:
+        CONFIG["pixel_size_mm"] = float(sys.argv[2])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     modo   = "regression_voting" if USE_VOTING else "soft-argmax"
     print(f"Device: {device} | Backbone: HRNet-W48 | Mode: {modo}")
-    print(f"Landmarks: {CONFIG['num_landmarks']} (19 original + UIT + UIA + LIA)")
     stage1, stage2 = carica_modelli(CONFIG, device)
-    img_orig, landmarks = predici(stage1, stage2, img_path, device, CONFIG)
-    disegna_landmark(img_orig, landmarks)
-    print("\nPredicted coordinates (pixels):")
+    cal = carica_calibrazione(CONFIG, stage1)
+    img_orig, landmarks, inc = predici(stage1, stage2, img_path, device, CONFIG)
+
+    sigma = inc[cal["fonte"] if cal else CONFIG["fonte_incertezza"]]
+    raggi_mm = None
+    if cal:
+        raggi_mm = np.array([q * s if q is not None else np.nan for q, s in zip(cal["q"], sigma)])
+
+    print(f"\nPredicted coordinates (pixels) — pixel size {CONFIG['pixel_size_mm']} mm/px")
+    intest = f"  {'':5s}  {'x':>8s} {'y':>8s}  {'sigma_hm':>8s} {'sigma_tta':>9s}"
+    if cal:
+        intest += f"  {'r' + format(cal['copertura'], '.0%'):>7s}"
+    print(intest + "   (mm)")
     for i, pt in enumerate(landmarks):
         nome = NOMI_LANDMARK[i] if i < len(NOMI_LANDMARK) else str(i + 1)
-        print(f"  {nome:5s}: x={pt[0]:.1f}, y={pt[1]:.1f}")
+        riga = f"  {nome:5s}  {pt[0]:8.1f} {pt[1]:8.1f}  {inc['heatmap'][i]:8.2f} {inc['tta'][i]:9.2f}"
+        if cal:
+            riga += f"  {raggi_mm[i]:7.2f}"
+        print(riga)
+    if cal:
+        print(f"\nr{cal['copertura']:.0%}: radius that contains the true point with probability "
+              f"~{cal['copertura']:.0%} (calibrated on the validation set, source '{cal['fonte']}').")
+    else:
+        print("\nNo calibration file: sigma columns are raw spreads, not calibrated radii. "
+              "Run evaluate_refine.py to create it.")
+
+    raggi_px = raggi_mm / CONFIG["pixel_size_mm"] if raggi_mm is not None else None
+    salva = os.path.splitext(img_path)[0] + "_pred.png" if CONFIG["salva_overlay"] else None
+    disegna_landmark(img_orig, landmarks, raggi_px, salva_in=salva, mostra=CONFIG["mostra_finestra"])
 
 
 if __name__ == "__main__":

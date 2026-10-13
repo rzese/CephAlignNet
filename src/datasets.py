@@ -9,7 +9,7 @@ Datasets:
 import torch
 import os
 import sys
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
@@ -28,9 +28,12 @@ except ImportError:
 PIXEL_SIZE_ISBI      = 0.1
 PIXEL_SIZE_TRACCIATI = 0.1
 
-# Default scale/orientation for the in-house "Tracciati" Excel coordinates
+# Default scale/orientation for the in-house "Tracciati" Excel coordinates.
+# The global scale is only a fallback for cases without a known per-case scale
+# (see tracciati_tabella_scale and dataset_tracciati.py).
 TRACCIATI_COORD_SCALE_DEFAULT = 0.01
 TRACCIATI_FLIP_Y_DEFAULT      = False
+TRACCIATI_SUBFOLDERS_DEFAULT  = ["tracciato 50", "tracciato 50_2"]
 
 # 19 original landmarks + UIT(19) + UIA(20) + LIA(21)
 # + Ls/UL(22) + Li/LL(23) + Pog`(24) + Sn(25) = 26
@@ -51,6 +54,10 @@ class Datasets(Dataset):
                  tracciati_path=None,
                  tracciati_coord_scale: float = 0.01,
                  tracciati_flip_y: bool = False,
+                 tracciati_tabella_scale=None,
+                 tracciati_subfolders=None,
+                 tracciati_unita: str = "auto",
+                 isbi_mappatura=None,
                  isbi_base=None,
                  ceph_path=None,
                  ceph_base=None,
@@ -66,18 +73,20 @@ class Datasets(Dataset):
         # split='all' loads ALL available Aariz images (train + valid + test)
         # instead of only the 'train' split.
         self.aariz = AarizDataset(base_path=path_aariz, split='all')
-        self.isbi  = ISBIDataset(base_path=path_isbi)
+        self.isbi  = ISBIDataset(base_path=path_isbi, mappatura=isbi_mappatura)
 
         if tracciati_path and os.path.isdir(tracciati_path):
             # ── Folders with coordinates in scaled units (from Excel .xltx/.xlsx) ──
             # coord_scale=0.01: raw values (~100000) → pixels of the full-size image
             self.tracciati = TracciatiDataset(
                 base_path=tracciati_path,
-                subfolder_names=["tracciato 50", "tracciato 50_2"],
+                subfolder_names=tracciati_subfolders or TRACCIATI_SUBFOLDERS_DEFAULT,
                 pixel_size=PIXEL_SIZE_TRACCIATI,
-                coord_scale=tracciati_coord_scale,  
+                coord_scale=tracciati_coord_scale,
                 flip_y=tracciati_flip_y,
                 use_thumbnail=False,
+                tabella_scale=tracciati_tabella_scale,
+                unita_excel=tracciati_unita,
             )
         else:
             self.tracciati = None
@@ -156,3 +165,24 @@ class Datasets(Dataset):
 
         idx -= self.len_isbi
         return wrap_output(self.tracciati[idx], PIXEL_SIZE_TRACCIATI, source="TRACCIATI")
+
+def crea_split(dataset, val_split=0.2, seed=42):
+    """
+    Train/validation split used by every script (training, evaluation,
+    statistics), so that they all see the same validation images.
+
+    Only the public samples (Aariz + ISBI) are split; Tracciati samples, if
+    present, all go to training (they are excluded from evaluation by design).
+    The public split therefore does not depend on whether Tracciati are
+    loaded — before, random_split over the whole dataset gave a different
+    permutation when they were added, and evaluation scripts (built without
+    Tracciati) ended up validating on training images.
+    With no Tracciati it reproduces exactly the old
+    random_split(dataset, ..., generator=manual_seed(seed)).
+    """
+    n_pub = dataset.len_aariz + dataset.len_isbi
+    n_val = int(n_pub * val_split)
+    perm  = torch.randperm(n_pub, generator=torch.Generator().manual_seed(seed)).tolist()
+    train_idx = perm[:n_pub - n_val] + list(range(n_pub, len(dataset)))
+    val_idx   = perm[n_pub - n_val:]
+    return Subset(dataset, train_idx), Subset(dataset, val_idx)

@@ -2,19 +2,19 @@ import os, random
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from functools import partial
-from torchvision.ops import roi_align
 
-from src.datasets import Datasets
-from src.model_hrnet import HRNetLandmark
-from src.model_refine import RefinementNet, MAX_OFFSET, ROI_OUTPUT_SIZE, ROI_HALF_SIZE
-from src.heatmap_utils import heatmap_a_coordinate, HEATMAP_TRAIN_SIZE
+from src.datasets import Datasets, crea_split
+from src.model_refine import RefinementNet, MAX_OFFSET
+from src.heatmap_utils import HEATMAP_TRAIN_SIZE
+from src.inferenza import carica_stage1 as _carica_stage1, collate_base, decodifica, estrai_roi
 
 CONFIG = {
     "aariz_path":     "data/Aariz",
     "isbi_path":      "data/Cepha400",
     "tracciati_path": "data/tracciati_forniti",
+    "tracciati_tabella_scale": None,   # see train_heatmap.py
     "num_landmarks":  26,   # 19 original + UIT(19) + UIA(20) + LIA(21) + Ls(22) + Li(23) + Pog`(24) + Sn(25)
     "batch_size":     8,
     "num_epochs":     400,
@@ -39,77 +39,35 @@ def carica_stage1(config, device):
     """
     Loads the frozen Stage 1 model (weights not updated during Stage 2
     training), trying several possible HRNet channel configurations until
-    one matches the saved checkpoint.
+    one matches the saved checkpoint (see src/inferenza.py).
     """
-    ckpt = torch.load(config["stage1_path"], map_location=device, weights_only=False)
-    for canali in [None, [192,384,768,1536], [64,128,256,512,1024], [128,256,512,1024], [64,128,256,512]]:
-        try:
-            model = HRNetLandmark(num_landmarks=config["num_landmarks"], pretrained=False, hrnet_channels=canali).to(device)
-            model.load_state_dict(ckpt["model_state_dict"], strict=True)
-            model.eval()
-            for p in model.parameters():
-                p.requires_grad = False
-            canali_usati = canali if canali else model.hrnet_channels
-            print(f"Stage 1 loaded (channels={canali_usati}, "
-                  f"epoch={ckpt.get('epoca','?')}, val_loss={ckpt.get('val_loss',0):.6f})")
-            return model
-        except RuntimeError as e:
-            if "size mismatch" in str(e):
-                continue
-            raise
-    raise RuntimeError("Could not load Stage 1.")
+    return _carica_stage1(config, device, congela=True)
 
 
 def predici_stage1(stage1, imgs, config):
     """Runs Stage 1 on a batch and decodes its heatmaps into normalized
-    coordinates via soft-argmax, also returning the fused feature map
-    (x_out) that Stage 2 will crop ROIs from."""
-    ts = config["heatmap_size"]
+    coordinates (with the decoding of the loaded checkpoint), also returning
+    the fused feature map (x_out) that Stage 2 will crop ROIs from."""
     with torch.no_grad():
         pred_raw, x_out = stage1(imgs)
-        if pred_raw.shape[2] != ts or pred_raw.shape[3] != ts:
-            pred_raw = F.interpolate(pred_raw, size=(ts, ts), mode='bilinear', align_corners=False)
-        coords = heatmap_a_coordinate(pred_raw[:, 0::3])
+        coords = decodifica(pred_raw, stage1, config["heatmap_size"])
     return coords, x_out
 
 
-def estrai_roi(feat_map, cx_norm, cy_norm, batch_idx, device):
-    """Crops a fixed-size ROI (via roi_align) out of feat_map, centered on
-    the normalized (cx_norm, cy_norm) point, for a single batch item."""
-    _, _, H_feat, W_feat = feat_map.shape
-    cx_feat = cx_norm * W_feat
-    cy_feat = cy_norm * H_feat
-    x1 = max(0.0, cx_feat - ROI_HALF_SIZE)
-    y1 = max(0.0, cy_feat - ROI_HALF_SIZE)
-    x2 = min(float(W_feat), cx_feat + ROI_HALF_SIZE)
-    y2 = min(float(H_feat), cy_feat + ROI_HALF_SIZE)
-    rois = torch.tensor([[batch_idx, x1, y1, x2, y2]], dtype=torch.float32, device=device)
-    return roi_align(feat_map, rois, output_size=ROI_OUTPUT_SIZE, spatial_scale=1.0, aligned=True)
-
 def collate_fn(batch, img_size=512):
-    """Resizes images to img_size, normalizes landmark coordinates to
-    [0, 1], and zero-pads points/mask to NUM_LANDMARKS=26."""
-    immagini, punti, masks, bboxes, pixel_sizes = zip(*batch)
-    imgs_r = [F.interpolate(img.unsqueeze(0), size=(img_size, img_size), mode='bilinear', align_corners=False).squeeze(0)
-              for img in immagini]
-    punti_pad, masks_pad = [], []
-    for img_orig, p, m in zip(immagini, punti, masks):
-        p_s = p.clone()
-        p_s[:, 0] = p[:, 0] / img_orig.shape[2]
-        p_s[:, 1] = p[:, 1] / img_orig.shape[1]
-        n = p_s.shape[0]
-        pp = torch.zeros(26, 2); pm = torch.zeros(26)   # 22 original + Ls + Li + Pog` + Sn
-        pp[:n] = p_s[:n]; pm[:n] = m[:n]
-        punti_pad.append(pp); masks_pad.append(pm)
-    return (torch.stack(imgs_r), torch.stack(punti_pad), torch.stack(masks_pad), torch.stack(bboxes), torch.stack(pixel_sizes))
+    """Resizes images to img_size and normalizes landmark coordinates to
+    [0, 1] (see src/inferenza.collate_base)."""
+    return collate_base(batch, img_size)
+
 
 def prepara_dati(config):
     """Builds the aggregated Datasets object, splits it into train/val
-    (same fixed seed as train_heatmap.py for a consistent split), and
+    (same split as train_heatmap.py and evaluate_refine.py), and
     returns the two DataLoaders."""
-    dataset = Datasets(aariz_path=config["aariz_path"],isbi_path=config["isbi_path"], tracciati_path=config.get("tracciati_path"))
-    n_val   = int(len(dataset) * config["val_split"])
-    train_ds, val_ds = random_split(dataset, [len(dataset)-n_val, n_val], generator=torch.Generator().manual_seed(42))
+    dataset = Datasets(aariz_path=config["aariz_path"], isbi_path=config["isbi_path"],
+                       tracciati_path=config.get("tracciati_path"),
+                       tracciati_tabella_scale=config.get("tracciati_tabella_scale"))
+    train_ds, val_ds = crea_split(dataset, config["val_split"], seed=42)
     fn = partial(collate_fn, img_size=config["img_size"])
     return (DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=0, collate_fn=fn), DataLoader(val_ds, batch_size=config["batch_size"], shuffle=False, num_workers=0, collate_fn=fn))
 
@@ -164,7 +122,9 @@ def genera_batch_refine(stage1, imgs, punti, masks, config, device, training=Fal
             else:
                 cx_in, cy_in = cx_pred, cy_pred
 
-            roi_crop = estrai_roi(x_out, cx_in, cy_in, b, device)
+            roi_crop = estrai_roi(x_out, torch.tensor([cx_in], device=device),
+                                  torch.tensor([cy_in], device=device),
+                                  torch.tensor([b], device=device))
             crops_list.append(roi_crop.squeeze(0))
             targets_list.append(torch.tensor([dx, dy], dtype=torch.float32))
             indices_list.append(torch.tensor(i, dtype=torch.long))
@@ -179,7 +139,7 @@ def train_un_epoca(stage1, refine, loader, optimizer, device, config, epoca=0):
     returns the average Huber loss on the predicted offsets."""
     stage1.eval(); refine.train()
     loss_totale, n_batch = 0.0, 0
-    for imgs, punti, masks, _, _ in loader:
+    for imgs, punti, masks, _, _, _ in loader:
         imgs, punti, masks = imgs.to(device), punti.to(device), masks.to(device)
         crops, targets, indices = genera_batch_refine(stage1, imgs, punti, masks,config, device, training=True, epoca=epoca)
         if crops is None:
@@ -198,7 +158,7 @@ def valida(stage1, refine, loader, device, config):
     stage1.eval(); refine.eval()
     loss_totale, n_batch = 0.0, 0
     with torch.no_grad():
-        for imgs, punti, masks, _, _ in loader:
+        for imgs, punti, masks, _, _, _ in loader:
             imgs, punti, masks = imgs.to(device), punti.to(device), masks.to(device)
             crops, targets, indices = genera_batch_refine(stage1, imgs, punti, masks, config, device, training=False)
             if crops is None:
@@ -214,7 +174,7 @@ def main():
     early stopping, and optional resume from a previous checkpoint."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
-    print(f"MAX_OFFSET: {MAX_OFFSET:.4f} (~{MAX_OFFSET*2400*0.1:.2f}mm)")
+    print(f"MAX_OFFSET: {MAX_OFFSET:.4f} (~{MAX_OFFSET*2400*0.1:.2f}mm on a 2400px image at 0.1mm/px)")
     print(f"Discard threshold: {CONFIG['scarto_soglia']:.4f}")
 
     stage1 = carica_stage1(CONFIG, device)
@@ -225,7 +185,8 @@ def main():
         in_channels = x_out.shape[1]
         print(f"Feature map: {in_channels}ch × {x_out.shape[2]}×{x_out.shape[3]}")
 
-    refine = RefinementNet(num_landmarks=CONFIG["num_landmarks"], in_channels=in_channels).to(device)
+    refine = RefinementNet(num_landmarks=CONFIG["num_landmarks"], in_channels=in_channels,
+                           max_offset=MAX_OFFSET).to(device)
 
     optimizer = optim.AdamW([
         {"params": refine.stem.parameters(), "lr": CONFIG["learning_rate"] * 0.3},
@@ -287,6 +248,7 @@ def main():
                 'arch': 'FeatureCropCNN',
                 'in_channels': in_channels,
                 'decodifica_stage1': 'soft-argmax',
+                'heatmap_mode_stage1': stage1.heatmap_mode,
             }, CONFIG["save_path"])
             print(f"  → saved (val_loss: {val_loss:.6f})")
         else:

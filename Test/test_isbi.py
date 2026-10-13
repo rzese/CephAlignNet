@@ -5,15 +5,15 @@ import os
 from src.dataset_isbi import ISBIDataset
 
 def test_isbi_visualizer():
-    #Configurazione percorsi 
-    csv_path = "data/Cepha400/train_senior.csv" 
-    
-    if not os.path.exists(csv_path):
-        print(f"ERRORE: Non trovo il file CSV in {csv_path}")
+    #Configurazione percorsi
+    base_path = "data/Cepha400"
+
+    if not os.path.isdir(base_path):
+        print(f"ERRORE: Non trovo la cartella {base_path}")
         return
 
     #Inizializzo il dataset
-    dataset = ISBIDataset(base_path="data/Cepha400", csv_name="train_senior.csv")
+    dataset = ISBIDataset(base_path=base_path)
 
     #primo elemento
     img_tensor, landmarks = dataset[0]
@@ -22,8 +22,10 @@ def test_isbi_visualizer():
     img_vis = (img_tensor.squeeze().numpy() * 255).astype(np.uint8)
     img_vis = cv2.cvtColor(img_vis, cv2.COLOR_GRAY2BGR)
 
-    #19 punti di ISBI
+    #punti ISBI rimappati sui 26 indici canonici ([0, 0] = non annotato)
     for i, pt in enumerate(landmarks):
+        if pt[0] == 0 and pt[1] == 0:
+            continue
         x, y = int(pt[0]), int(pt[1])
         #BLU per distinguere ISBI da Aariz (che era verde)
         cv2.circle(img_vis, (x, y), 8, (255, 0, 0), -1)

@@ -8,11 +8,21 @@ NUM_LANDMARKS = 26
 
 # Mapping from the ISBI/Cepha400 "P1..P19" landmark indices to this
 # project's canonical 26-landmark indexing (see dataset.py / SYMBOL_ORDER).
-# Reference: Lindner et al. 2015, Wang et al. 2016.
-# P18 (UPM) is not part of the canonical set here, so it is left unmapped
-# (stays [0, 0] / masked).
+#
+# !! TO BE VERIFIED ON THE DATA !!
+# "legacy" is the mapping this project has always used. It does NOT match the
+# landmark order published for the ISBI 2015 challenge (Wang et al. 2015/2016),
+# where L5 = subspinale (A), L6 = supramentale (B), L7 = pogonion, L8 = menton,
+# L9 = gnathion, L10 = gonion, L11 = lower incisal incision, L12 = upper
+# incisal incision, L13 = upper lip, L14 = lower lip, L15 = subnasale,
+# L16 = soft-tissue pogonion, L17 = PNS, L18 = ANS, L19 = articulare
+# ("standard" below). Only L1-L4 (S, N, Or, Po) agree.
+# Run  PYTHONPATH=. python Test/verifica_mappatura_isbi.py  and look at the
+# saved image to see which one is right, then set MAPPATURA_ISBI_DEFAULT.
+# Changing it changes the training labels of all 400 ISBI images: retrain
+# Stage 1 and Stage 2 afterwards.
 
-ISBI_P_TO_CANONICAL = {
+ISBI_P_TO_CANONICAL_LEGACY = {
     1:  10,   # P1  = S    → idx 10
     2:   4,   # P2  = N    → idx  4
     3:   5,   # P3  = Or   → idx  5
@@ -32,6 +42,37 @@ ISBI_P_TO_CANONICAL = {
     17: 17,   # P17 = LIT  → idx 17
     19:  9,   # P19 = R    → idx  9
 }
+
+ISBI_P_TO_CANONICAL_STANDARD = {
+    1:  10,   # L1  sella                   → S
+    2:   4,   # L2  nasion                  → N
+    3:   5,   # L3  orbitale                → Or
+    4:  15,   # L4  porion                  → Po
+    5:   0,   # L5  subspinale              → A
+    6:   2,   # L6  supramentale            → B
+    7:   6,   # L7  pogonion                → Pog
+    8:   3,   # L8  menton                  → Me
+    9:  13,   # L9  gnathion                → Gn
+    10: 14,   # L10 gonion                  → Go
+    11: 17,   # L11 lower incisal incision  → LIT
+    12: 19,   # L12 upper incisal incision  → UIT
+    13: 22,   # L13 upper lip               → Ls
+    14: 23,   # L14 lower lip               → Li
+    15: 25,   # L15 subnasale               → Sn
+    16: 24,   # L16 soft tissue pogonion    → Pog`
+    17:  7,   # L17 posterior nasal spine   → PNS
+    18:  1,   # L18 anterior nasal spine    → ANS
+    19: 11,   # L19 articulare              → Ar
+}
+
+MAPPATURE_ISBI = {"legacy": ISBI_P_TO_CANONICAL_LEGACY,
+                  "standard": ISBI_P_TO_CANONICAL_STANDARD}
+
+# Mapping used everywhere (training, evaluation, statistics). See the note above.
+MAPPATURA_ISBI_DEFAULT = "legacy"
+
+# Kept for code that imports the old name
+ISBI_P_TO_CANONICAL = MAPPATURE_ISBI[MAPPATURA_ISBI_DEFAULT]
 
 # Image subfolders in order of case ID ranges: 001-150, 151-300, 301-400
 IMG_SUBFOLDERS = [
@@ -71,13 +112,16 @@ class ISBIDataset(Dataset):
     Train/val splitting is handled externally by Datasets via
     random_split, exactly as for Aariz.
     """
-    def __init__(self, base_path="data/Cepha400"):
+    def __init__(self, base_path="data/Cepha400", mappatura=None):
         """
         Scans the dataset folder and builds the list of available samples,
         keeping only cases where the image and both annotation files
         (junior and senior) actually exist on disk.
+        mappatura: "legacy" | "standard" (default MAPPATURA_ISBI_DEFAULT).
         """
         self.base_path  = base_path
+        self.mappatura  = mappatura or MAPPATURA_ISBI_DEFAULT
+        self.p_to_canonical = MAPPATURE_ISBI[self.mappatura]
         self.junior_dir = os.path.join(base_path, "AnnotationsByMD", "400_junior")
         self.senior_dir = os.path.join(base_path, "AnnotationsByMD", "400_senior")
 
@@ -95,7 +139,7 @@ class ISBIDataset(Dataset):
                 else:
                     print(f"[ISBIDataset] ATTENZIONE: campione {n:03d} mancante, saltato")
 
-        print(f"[ISBIDataset] campioni totali={len(self.samples)}")
+        print(f"[ISBIDataset] campioni totali={len(self.samples)} | mappatura={self.mappatura}")
 
     def __len__(self):
         """Number of valid samples found on disk.""" 
@@ -121,7 +165,7 @@ class ISBIDataset(Dataset):
 
         coords = np.zeros((NUM_LANDMARKS, 2), dtype='float32')
         for p_num in range(1, 20):
-            canonical_idx = ISBI_P_TO_CANONICAL.get(p_num)
+            canonical_idx = self.p_to_canonical.get(p_num)
             if canonical_idx is None:
                 continue
             coords[canonical_idx] = avg_p[p_num - 1]

@@ -3,16 +3,16 @@ import numpy as np
 import torch
 from src.datasets import Datasets
 
-# Inizializzazione corretta con i tre percorsi
+# Inizializzazione con Aariz, ISBI e (se presente) Tracciati
 dataset = Datasets(
-    aariz_path="data/Aariz", 
+    aariz_path="data/Aariz",
     isbi_path="data/Cepha400",
-    ceph_path="data/CephBiometrics400"
+    tracciati_path="data/tracciati_forniti",
 )
 
 def visualizza_campione(idx):
     # Estrazione 4 elementi da dataset
-    img_tensor, points, mask, bbox = dataset[idx]
+    img_tensor, points, mask, bbox, _ = dataset[idx]
     
     # Conversione per OpenCV
     img = (img_tensor.squeeze().numpy() * 255).astype(np.uint8)
@@ -34,7 +34,7 @@ def visualizza_campione(idx):
     elif idx < (dataset.len_aariz + dataset.len_isbi):
         origine = "ISBI"
     else:
-        origine = "CEPH-BIOMETRICS"
+        origine = "TRACCIATI"
         
     titolo = f"Test - {origine} (Idx assoluto: {idx})"
     print(f"Mostrando {titolo}...")
@@ -47,11 +47,12 @@ def visualizza_campione(idx):
 # Calcoliamo gli indici per testare la PRIMA immagine di ogni dataset
 idx_aariz = 0
 idx_isbi = dataset.len_aariz
-idx_ceph = dataset.len_aariz + dataset.len_isbi
+idx_tracciati = dataset.len_aariz + dataset.len_isbi
 
-# Testiamo le tre immagini in sequenza
-visualizza_campione(idx_aariz) 
-visualizza_campione(idx_isbi) 
-visualizza_campione(idx_ceph) 
+# Testiamo le immagini in sequenza
+visualizza_campione(idx_aariz)
+visualizza_campione(idx_isbi)
+if dataset.len_tracciati:
+    visualizza_campione(idx_tracciati)
 
 cv2.destroyAllWindows()

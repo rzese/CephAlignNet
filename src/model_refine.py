@@ -2,7 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-MAX_OFFSET = 0.008   
+# Maximum correction of Stage 2, in normalized coordinates. Used when TRAINING a
+# new Stage 2; when loading a checkpoint, the value it was trained with (saved as
+# 'max_offset') is used instead — see src/inferenza.py: carica_stage2.
+MAX_OFFSET = 0.008
 
 try:
     from src.landmark_stats import REFINE_LANDMARK_MASK
@@ -11,7 +14,7 @@ except ImportError:
         from landmark_stats import REFINE_LANDMARK_MASK
     except ImportError:
         print("[WARN] src/landmark_stats.py not found — using fallback "
-              "REFINE_LANDMARK_MASK (run analizza_difficolta_landmark.py to generate it from the data).")
+              "REFINE_LANDMARK_MASK (run `python -m src.analiz_land` to generate it from the data).")
         
         REFINE_LANDMARK_MASK = {5, 9, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}
 
@@ -81,7 +84,7 @@ class RefinementNet(nn.Module):
     and regresses a bounded (x, y) offset correction in normalized image
     coordinates (via a final Tanh scaled by MAX_OFFSET).
     """
-    def __init__(self, num_landmarks=26, in_channels=128):
+    def __init__(self, num_landmarks=26, in_channels=128, max_offset=None):
         super().__init__()
         self.in_channels = in_channels
 
@@ -127,7 +130,7 @@ class RefinementNet(nn.Module):
             nn.Tanh(),
         )
 
-        self.max_offset = MAX_OFFSET
+        self.max_offset = MAX_OFFSET if max_offset is None else float(max_offset)
 
     def forward(self, x, landmark_idx):
         s = self.stem(x)           # [B, 256, 32, 32]

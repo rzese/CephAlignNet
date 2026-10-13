@@ -13,7 +13,7 @@ except ImportError:
         from landmark_stats import SIGMA_PER_LANDMARK, PESI_LANDMARK
     except ImportError:
         print("[WARN] src/landmark_stats.py non trovato — uso valori di fallback "
-              "(esegui analizza_difficolta_landmark.py per generarli dai dati).")
+              "(esegui `python -m src.analiz_land` per generarli dai dati).")
 
         SIGMA_PER_LANDMARK = {
             5:  5.0,   # Or
@@ -47,8 +47,49 @@ except ImportError:
 # Resolution the offsets are trained at (must match heatmap_size in CONFIG)
 HEATMAP_TRAIN_SIZE = 256
 
+# Pixel-grid convention linking normalized coordinates in [0, 1] to heatmap pixels.
+#   "centri": pixel j has its center at (j + 0.5) / size — the same convention as
+#             F.interpolate(align_corners=False). Used by every new training run.
+#   "legacy": the convention of checkpoints trained before the fix: targets were
+#             rendered at x * size but soft-argmax decoded pixel j as j / (size - 1),
+#             a mismatch of up to ~0.5 heatmap px. Kept only to decode old checkpoints
+#             exactly as they were trained/evaluated.
+GRIGLIE = ("centri", "legacy")
 
-def regression_voting(output, n_landmarks, R=40, target_size=HEATMAP_TRAIN_SIZE):
+
+def griglia_normalizzata(n, device=None, griglia="centri"):
+    """Normalized coordinate of each of the n pixel centers along one axis."""
+    if griglia == "legacy":
+        return torch.linspace(0, 1, n, device=device)
+    return (torch.arange(n, device=device, dtype=torch.float32) + 0.5) / n
+
+
+def coordinate_in_pixel_heatmap(coord_norm, size, griglia="centri"):
+    """Normalized coordinate -> continuous position in heatmap pixel units
+    (inverse of griglia_normalizzata for the 'centri' grid)."""
+    if griglia == "legacy":
+        return coord_norm * size
+    return coord_norm * size - 0.5
+
+
+def ruota_coordinate(coords, angle_deg):
+    """
+    Applies to normalized coordinates [..., 2] the same transform that
+    TF.rotate(img, angle_deg) applies to a square image (counter-clockwise
+    rotation around the center, y pointing down).
+    To undo a rotation use ruota_coordinate(coords, -angle_deg).
+    """
+    theta = math.radians(-angle_deg)
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+    out = coords.clone()
+    cx = coords[..., 0] - 0.5
+    cy = coords[..., 1] - 0.5
+    out[..., 0] = cos_t * cx - sin_t * cy + 0.5
+    out[..., 1] = sin_t * cx + cos_t * cy + 0.5
+    return out
+
+
+def regression_voting(output, n_landmarks, R=40, target_size=HEATMAP_TRAIN_SIZE, griglia="centri"):
     """
     output: [B, N*3, H, W]  — heatmap + 2 offset channels per landmark
     n_landmarks: int
@@ -63,6 +104,7 @@ def regression_voting(output, n_landmarks, R=40, target_size=HEATMAP_TRAIN_SIZE)
                                mode='bilinear', align_corners=False)
 
     B, _, H, W = output.shape
+    centro = 0.0 if griglia == "legacy" else 0.5
     heatmaps = output[:, 0::3]
     offset_x = output[:, 1::3]
     offset_y = output[:, 2::3]
@@ -81,8 +123,8 @@ def regression_voting(output, n_landmarks, R=40, target_size=HEATMAP_TRAIN_SIZE)
             rows = topk // W
             cols = topk % W
 
-            vote_x = cols.float() + ox.view(-1)[topk] * R
-            vote_y = rows.float() + oy.view(-1)[topk] * R
+            vote_x = cols.float() + centro + ox.view(-1)[topk] * R
+            vote_y = rows.float() + centro + oy.view(-1)[topk] * R
 
             px = vote_x.mean() / W
             py = vote_y.mean() / H
@@ -91,23 +133,39 @@ def regression_voting(output, n_landmarks, R=40, target_size=HEATMAP_TRAIN_SIZE)
     return torch.stack(coords)   # [B, N, 2]
 
 
-def combined_loss(pred, heatmap_gt, pts_gt, mask, R=40, alpha=2/3):
-    """Combines the AWing heatmap loss with an L1 loss on the local offset
-    maps, restricted to pixels within radius R of the ground-truth point."""
+def combined_loss(pred, heatmap_gt, pts_gt, mask, R=40, alpha=2/3,
+                  tipo_loss_heatmap="awing", griglia="centri"):
+    """Combines a heatmap loss with an L1 loss on the local offset maps,
+    restricted to pixels within radius R of the ground-truth point.
+
+    tipo_loss_heatmap:
+      "awing" — Adaptive Wing against a fixed-sigma target (heatmap_mode "fixed")
+      "mse"   — MSE against a target rendered with learnable sigma ("learned_sigma")
+      "nll"   — the heatmap channel is a logit map; negative log-likelihood of the
+                ground-truth position under its spatial softmax ("probabilistic").
+                heatmap_gt is ignored (may be None).
+    """
 
     B, _, H, W = pred.shape
-    N = heatmap_gt.shape[1]
+    N = pts_gt.shape[1]
 
     pred_hm = pred[:, 0::3]
     pred_ox = pred[:, 1::3]
     pred_oy = pred[:, 2::3]
 
-    loss_hm = awing_loss(pred_hm, heatmap_gt, mask)
+    if tipo_loss_heatmap == "awing":
+        loss_hm = awing_loss(pred_hm, heatmap_gt, mask)
+    elif tipo_loss_heatmap == "mse":
+        loss_hm = mse_heatmap_loss(pred_hm, heatmap_gt, mask)
+    elif tipo_loss_heatmap == "nll":
+        loss_hm = nll_heatmap_loss(pred_hm, pts_gt, mask, griglia=griglia)
+    else:
+        raise ValueError(f"tipo_loss_heatmap sconosciuto: {tipo_loss_heatmap}")
 
     grid_x = torch.arange(W, device=pred.device).float().view(1, 1, 1, W).expand(B, N, H, W)
     grid_y = torch.arange(H, device=pred.device).float().view(1, 1, H, 1).expand(B, N, H, W)
-    gt_x   = (pts_gt[:, :, 0] * W).view(B, N, 1, 1).expand_as(grid_x)
-    gt_y   = (pts_gt[:, :, 1] * H).view(B, N, 1, 1).expand_as(grid_y)
+    gt_x   = coordinate_in_pixel_heatmap(pts_gt[:, :, 0], W, griglia).view(B, N, 1, 1).expand_as(grid_x)
+    gt_y   = coordinate_in_pixel_heatmap(pts_gt[:, :, 1], H, griglia).view(B, N, 1, 1).expand_as(grid_y)
 
     gt_ox = (gt_x - grid_x) / R
     gt_oy = (gt_y - grid_y) / R
@@ -130,31 +188,33 @@ def crea_heatmap_gaussiana(h, w, cx, cy, sigma=4.0):
     return np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma ** 2))
 
 
-def coordinate_a_heatmap(pts, mask, img_size=512, heatmap_size=256, sigma=4.0):
+def coordinate_a_heatmap(pts, mask, img_size=512, heatmap_size=256, sigma=4.0, griglia="centri"):
     """Converts normalized ground-truth (x, y) coordinates into per-landmark
-    Gaussian heatmaps used as the Stage 1 training target."""
+    Gaussian heatmaps (fixed sigma, peak 1) used as the Stage 1 training target."""
 
     N = pts.shape[0]
     heatmaps = np.zeros((N, heatmap_size, heatmap_size), dtype=np.float32)
     for i in range(N):
         if mask[i].item() == 1.0:
             s  = SIGMA_PER_LANDMARK.get(i, sigma)
-            cx = pts[i, 0].item() * heatmap_size
-            cy = pts[i, 1].item() * heatmap_size
-            if 0 <= cx < heatmap_size and 0 <= cy < heatmap_size:
+            cx = coordinate_in_pixel_heatmap(pts[i, 0].item(), heatmap_size, griglia)
+            cy = coordinate_in_pixel_heatmap(pts[i, 1].item(), heatmap_size, griglia)
+            if -0.5 <= cx < heatmap_size and -0.5 <= cy < heatmap_size:
                 heatmaps[i] = crea_heatmap_gaussiana(heatmap_size, heatmap_size, cx, cy, s)
     return torch.from_numpy(heatmaps)
 
 
-def heatmap_a_coordinate(heatmaps, temperatura=100.0):
+def heatmap_a_coordinate(heatmaps, temperatura=100.0, griglia="centri"):
     """Soft-argmax decoding: converts predicted heatmaps into normalized
     (x, y) coordinates via a temperature-scaled softmax expectation.
-    This is the default, stable decoding used at inference (USE_VOTING=False)."""
+    This is the default, stable decoding used at inference (USE_VOTING=False).
+    For heatmap_mode "probabilistic" the heatmap is a logit map and
+    temperatura=1 gives the expectation of the predicted distribution."""
     B, N, H, W = heatmaps.shape
-    flat    = heatmaps.view(B, N, -1) * temperatura
+    flat    = heatmaps.reshape(B, N, -1) * temperatura
     weights = torch.softmax(flat, dim=2).view(B, N, H, W)
-    grid_x  = torch.linspace(0, 1, W, device=heatmaps.device).view(1, 1, 1, W)
-    grid_y  = torch.linspace(0, 1, H, device=heatmaps.device).view(1, 1, H, 1)
+    grid_x  = griglia_normalizzata(W, heatmaps.device, griglia).view(1, 1, 1, W)
+    grid_y  = griglia_normalizzata(H, heatmaps.device, griglia).view(1, 1, H, 1)
     x = (weights * grid_x).sum(dim=[2, 3])
     y = (weights * grid_y).sum(dim=[2, 3])
     return torch.stack([x, y], dim=2)
@@ -207,6 +267,61 @@ def heatmap_loss(pred, target, mask):
     return awing_loss(pred, target, mask)
 
 
+def _pesi_landmark(N, device):
+    pesi = torch.ones(N, device=device)
+    for idx, peso in PESI_LANDMARK.items():
+        if idx < N:
+            pesi[idx] = peso
+    return pesi
+
+
+def mse_heatmap_loss(pred, target, mask, energia_rif=None):
+    """
+    MSE between predicted heatmaps and targets rendered with learnable sigma
+    (heatmap_mode "learned_sigma", Payer et al. 2020). The squared error is
+    summed over the pixels of each landmark and divided by energia_rif — the
+    energy of a peak-1 Gaussian with the reference sigma (pi * 4^2) — so that
+    1.0 means "target completely missed" whatever the heatmap size.
+    Weighted per landmark with PESI_LANDMARK, like awing_loss.
+    """
+    B, N, H, W = pred.shape
+    if energia_rif is None:
+        energia_rif = math.pi * 4.0 ** 2
+    peso = mask * _pesi_landmark(N, pred.device).unsqueeze(0)          # [B, N]
+    per_lm = ((pred - target) ** 2).sum(dim=(2, 3)) / energia_rif       # [B, N]
+    return (per_lm * peso).sum() / peso.sum().clamp(min=1e-6)
+
+
+def nll_heatmap_loss(logits, pts, mask, griglia="centri"):
+    """
+    Negative log-likelihood of the ground-truth position under the spatial
+    softmax of each logit map (heatmap_mode "probabilistic"). The continuous
+    position is spread over its 4 neighbouring pixels with bilinear weights.
+    Minimizing it makes the predicted distribution match the model's actual
+    localization error, so its spread can be read as uncertainty.
+    Divided by log(H*W) so that a uniform prediction gives ~1.0.
+    """
+    B, N, H, W = logits.shape
+    logp = F.log_softmax(logits.reshape(B, N, -1), dim=2)
+
+    u = coordinate_in_pixel_heatmap(pts[..., 0], W, griglia).clamp(0, W - 1)
+    v = coordinate_in_pixel_heatmap(pts[..., 1], H, griglia).clamp(0, H - 1)
+    u0 = u.floor().clamp(max=W - 2)
+    v0 = v.floor().clamp(max=H - 2)
+    du, dv = u - u0, v - v0
+    u0, v0 = u0.long(), v0.long()
+
+    def lp(vv, uu):
+        return torch.gather(logp, 2, (vv * W + uu).unsqueeze(-1)).squeeze(-1)
+
+    log_lik = ((1 - du) * (1 - dv) * lp(v0, u0) + du * (1 - dv) * lp(v0, u0 + 1)
+               + (1 - du) * dv * lp(v0 + 1, u0) + du * dv * lp(v0 + 1, u0 + 1))
+
+    peso = mask * _pesi_landmark(N, logits.device).unsqueeze(0)
+    nll = -(log_lik * peso).sum() / peso.sum().clamp(min=1e-6)
+    return nll / math.log(H * W)
+
+
 def wing_loss_coord(pred, gt, mask, w=10, eps=2.0):
     """Auxiliary Wing loss computed directly on normalized coordinates
     (decoded via soft-argmax), complementing the heatmap-space loss."""
@@ -219,21 +334,26 @@ def wing_loss_coord(pred, gt, mask, w=10, eps=2.0):
     return (loss * m4).sum() / m4.sum().clamp(min=1)
 
 
-def geometric_consistency_loss(pred_pts, mask):
+def geometric_consistency_loss(pred_pts, mask, gt_pts=None):
     """
     Penalizes geometrically inconsistent predictions between related
     landmarks.
 
     Enforced anatomical relationships:
       - Gn (13) must be close to the midpoint of Me (3) and Pog (6)
-      - S (10) must be to the left (smaller x) of N (4) on a right-facing
-        lateral cephalogram
+      - S (10) must be behind N (4) along the face direction
       - Me (3) must be lower (larger y) than B (2)
       - B (2) must be lower than A (0)
-      - ANS (1) must be to the right (larger x) of PNS (7)
+      - ANS (1) must be in front of PNS (7) along the face direction
       - Co (12) must be higher (smaller y) than Go (14)
-      - UIT (19) must be higher (smaller y) than UIA (20)  
-      - LIT (17) must be lower (larger y) than LIA (21)   
+      - UIT (19) must be lower (larger y) than UIA (20): crown tip below apex
+      - LIA (21) must be lower (larger y) than LIT (17): apex below crown tip
+
+    The two horizontal constraints depend on which way the face looks. With
+    gt_pts the direction is read per sample from the ground truth (sign of
+    N_x - S_x), so they stay correct on horizontally flipped images and on
+    left-facing radiographs; if S or N are not annotated those two terms are
+    skipped. Without gt_pts a right-facing face is assumed (old behaviour).
     """
     B    = pred_pts.shape[0]
     loss = torch.tensor(0.0, device=pred_pts.device)
@@ -246,6 +366,15 @@ def geometric_consistency_loss(pred_pts, mask):
     for b in range(B):
         pts = pred_pts[b]
         msk = mask[b]
+
+        # +1: face looks right (N has larger x than S), -1: face looks left,
+        # None: unknown -> skip the horizontal constraints
+        if gt_pts is None:
+            verso = 1.0
+        elif msk[IDX["S"]] and msk[IDX["N"]]:
+            verso = 1.0 if gt_pts[b, IDX["N"], 0] >= gt_pts[b, IDX["S"], 0] else -1.0
+        else:
+            verso = None
 
         # 1. Gn ~ midpoint(Me, Pog)
         if msk[IDX["Gn"]] and msk[IDX["Me"]] and msk[IDX["Pog"]]:
@@ -265,9 +394,9 @@ def geometric_consistency_loss(pred_pts, mask):
             loss += viol ** 2
             n_terms += 1
 
-        # 4. ANS to the right of PNS
-        if msk[IDX["ANS"]] and msk[IDX["PNS"]]:
-            viol = torch.clamp(pts[IDX["PNS"], 0] - pts[IDX["ANS"], 0], min=0)
+        # 4. ANS in front of PNS
+        if verso is not None and msk[IDX["ANS"]] and msk[IDX["PNS"]]:
+            viol = torch.clamp(verso * (pts[IDX["PNS"], 0] - pts[IDX["ANS"], 0]), min=0)
             loss += viol ** 2
             n_terms += 1
 
@@ -277,15 +406,16 @@ def geometric_consistency_loss(pred_pts, mask):
             loss += viol ** 2
             n_terms += 1
 
-        # 6. S to the left of N
-        if msk[IDX["S"]] and msk[IDX["N"]]:
-            viol = torch.clamp(pts[IDX["S"], 0] - pts[IDX["N"], 0], min=0)
+        # 6. S behind N
+        if verso is not None and msk[IDX["S"]] and msk[IDX["N"]]:
+            viol = torch.clamp(verso * (pts[IDX["S"], 0] - pts[IDX["N"], 0]), min=0)
             loss += viol ** 2
             n_terms += 1
 
-        # 7. UIT higher than UIA (crown tip above root apex)
+        # 7. UIT lower than UIA: the upper incisor root apex sits up in the
+        #    maxilla, its crown tip points down (larger y)
         if msk[IDX["UIT"]] and msk[IDX["UIA"]]:
-            viol = torch.clamp(pts[IDX["UIT"], 1] - pts[IDX["UIA"], 1], min=0)
+            viol = torch.clamp(pts[IDX["UIA"], 1] - pts[IDX["UIT"], 1], min=0)
             loss += viol ** 2
             n_terms += 1
 

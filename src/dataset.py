@@ -96,7 +96,7 @@ class AarizDataset(Dataset):
         """
         Loads one sample: reads the grayscale image and its Senior
         annotation; if a matching Junior annotation also exists, the
-        returned landmarks are the average of the two (ceil-rounded),
+        returned landmarks are the average of the two,
         otherwise the Senior annotation is used as-is.
         Returns (image_tensor, landmarks_tensor, pixel_size_tensor).
         """
@@ -115,7 +115,8 @@ class AarizDataset(Dataset):
             junior_path = os.path.join(junior_dir, fname + '.json')
             if os.path.exists(junior_path):
                 junior = np.array(self._parse_json(junior_path), dtype=np.float32)
-                landmarks = np.ceil(0.5 * (senior + junior)).astype(np.float32)
+                # Plain average: the former np.ceil biased every point by up to +1 px
+                landmarks = (0.5 * (senior + junior)).astype(np.float32)
             else:
                 landmarks = senior
         else:

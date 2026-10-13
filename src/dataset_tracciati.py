@@ -1,4 +1,8 @@
+import csv
 import os
+import re
+import zipfile
+
 import cv2
 import torch
 import numpy as np
@@ -272,6 +276,84 @@ def _identifica_file(folder: str, case_id: str, use_thumbnail: bool = False):
     return img_path, excel_path
 
 
+# ─── Per-case scale (pixels per mm) ───────────────────────────────────────────
+# ImageJ exports landmark coordinates in calibrated units (mm, and in .xlsx/.xltx
+# files multiplied by 1000). To turn them into pixels the scale of EACH
+# radiograph is needed: it varies a lot between machines and scans (about
+# 3.5–11.6 px/mm in the clinic data), so a single global coord_scale gives
+# wrong labels for most cases. The scale is looked up, in order, in:
+#   1. a table (CSV or Excel) with columns case_id, scale_px_per_mm
+#      (e.g. coordinate_radiografie.xlsx);
+#   2. a .docx in the case folder with the text of ImageJ's "Set Scale" dialog
+#      ("Distance in pixels: ... Known distance: ...");
+#   3. otherwise the legacy global coord_scale (with a warning).
+
+def _numero(token):
+    # Some exports use '.' also as thousands separator ("1.089.000" = 1089.000):
+    # the last group is always the decimal part.
+    parts = str(token).strip().replace(" ", "").replace(",", ".").split(".")
+    if len(parts) > 1:
+        return float("".join(parts[:-1]) + "." + parts[-1])
+    return float(parts[0])
+
+
+def carica_tabella_scale(path):
+    """Reads a CSV/Excel table with columns 'case_id' and 'scale_px_per_mm'
+    -> {case_id (lowercase): px_per_mm}."""
+    righe = []
+    if path.lower().endswith((".xlsx", ".xlsm", ".xltx")):
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        rows = list(wb.active.iter_rows(values_only=True))
+        wb.close()
+        header = [str(h).strip() if h is not None else "" for h in rows[0]]
+        righe = [dict(zip(header, r)) for r in rows[1:]]
+    else:
+        with open(path, newline="", encoding="utf-8", errors="ignore") as f:
+            campione = f.read(2048); f.seek(0)
+            delim = ";" if campione.count(";") > campione.count(",") else ","
+            righe = list(csv.DictReader(f, delimiter=delim))
+    tabella = {}
+    for r in righe:
+        cid, scala = r.get("case_id"), r.get("scale_px_per_mm")
+        if cid is None or scala in (None, ""):
+            continue
+        try:
+            tabella[str(cid).strip().lower()] = _numero(scala)
+        except ValueError:
+            continue
+    return tabella
+
+
+def leggi_scala_docx(path):
+    """px/mm from a .docx containing ImageJ's "Set Scale" text, or None."""
+    try:
+        xml = zipfile.ZipFile(path).read("word/document.xml").decode("utf-8", "ignore")
+    except (KeyError, OSError, zipfile.BadZipFile):
+        return None
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", xml))
+    # Word sometimes splits digits across runs: "11 4 .0 04 4" -> "114.0044"
+    dist  = re.search(r"Distance in pixels:\s*([\d .,]+?)\s*Known", text)
+    known = re.search(r"Known distance:\s*([\d .,]+?)\s*(Pixel|Unit|$)", text)
+    if not dist or not known:
+        return None
+    try:
+        d, k = _numero(dist.group(1).replace(" ", "")), _numero(known.group(1).replace(" ", ""))
+    except ValueError:
+        return None
+    return d / k if k else None
+
+
+def _trova_docx(folder):
+    try:
+        for f in sorted(os.listdir(folder)):
+            if f.lower().endswith(".docx") and not f.startswith((".", "~$")):
+                return os.path.join(folder, f)
+    except OSError:
+        pass
+    return None
+
+
 # ─── Excel parser ──────────────────────────────────────────────────────────────
 def _parse_excel(path: str, coord_scale: float = 1.0,
                  flip_y: bool = False, img_height: int = 0) -> dict:
@@ -356,23 +438,41 @@ class TracciatiDataset(Dataset):
                  pixel_size: float = 0.1,
                  coord_scale: float = 1.0,
                  flip_y: bool = False,
-                 use_thumbnail: bool = False):
+                 use_thumbnail: bool = False,
+                 tabella_scale=None,
+                 unita_excel: str = "auto"):
         """
         use_thumbnail=True  -> load the "-T.jpg" thumbnail file for the TELE
                                 folders, where coordinates are already in
                                 thumbnail pixels.
         use_thumbnail=False -> original behaviour (full-size image).
 
+        tabella_scale: path of a CSV/Excel table (case_id, scale_px_per_mm) or
+                       an already loaded {case_id: px_per_mm} dict. Cases with
+                       a known scale (from the table or from a .docx in their
+                       folder) are converted mm -> px with their own scale and
+                       get pixel_size = 1/scale; the others fall back to
+                       coord_scale / pixel_size.
+        unita_excel:   unit of the Excel values for cases with a known scale:
+                       "mm1000" (ImageJ .xlsx/.xltx, mm x 1000), "mm", or
+                       "auto" (mm1000 if the median value is > 3000, else mm).
+
         Scans base_path/<subfolder>/<case_id>/ for every case, keeping only
         those where both an image and an Excel file were found, and builds
-        the self.samples list of (img_path, excel_path) pairs used by
-        __getitem__.
+        the self.samples list used by __getitem__.
         """
         self.pixel_size    = pixel_size
         self.coord_scale   = coord_scale
         self.flip_y        = flip_y
         self.use_thumbnail = use_thumbnail
+        self.unita_excel   = unita_excel
         self.samples: list = []
+
+        if isinstance(tabella_scale, str):
+            tabella_scale = carica_tabella_scale(tabella_scale) if os.path.exists(tabella_scale) else None
+            if tabella_scale is None:
+                print("[TracciatiDataset] WARNING: scale table not found")
+        tabella_scale = {str(k).lower(): v for k, v in (tabella_scale or {}).items()}
 
         if not os.path.isdir(base_path):
             print(f"[TracciatiDataset] WARNING: folder not found: {base_path}")
@@ -385,6 +485,7 @@ class TracciatiDataset(Dataset):
             )
 
         n_ok, n_skip = 0, 0
+        origine_scala = {"tabella": 0, "docx": 0, "fallback": 0}
         for sub in subfolder_names:
             sub_path = os.path.join(base_path, sub)
             if not os.path.isdir(sub_path):
@@ -402,16 +503,30 @@ class TracciatiDataset(Dataset):
                 if img_path is None:
                     print(f"[TracciatiDataset] SKIP {case_path}: image not found")
                     n_skip += 1
-                elif excel_path is None:
+                    continue
+                if excel_path is None:
                     print(f"[TracciatiDataset] SKIP {case_path}: Excel file not found")
                     n_skip += 1
+                    continue
+
+                scala = tabella_scale.get(cid.lower())
+                if scala is not None:
+                    origine_scala["tabella"] += 1
                 else:
-                    self.samples.append((img_path, excel_path))
-                    n_ok += 1
+                    docx = _trova_docx(case_path)
+                    scala = leggi_scala_docx(docx) if docx else None
+                    origine_scala["docx" if scala else "fallback"] += 1
+                self.samples.append((img_path, excel_path, scala))
+                n_ok += 1
 
         print(f"[TracciatiDataset] {n_ok} samples | {n_skip} skipped | {base_path}")
         if n_ok:
-            print(f"  coord_scale={coord_scale} | flip_y={flip_y} | pixel_size={pixel_size}mm/px")
+            print(f"  scale per case: {origine_scala['tabella']} from table, "
+                  f"{origine_scala['docx']} from .docx, {origine_scala['fallback']} with the "
+                  f"global coord_scale={coord_scale} (pixel_size={pixel_size}mm/px)")
+            if origine_scala["fallback"]:
+                print("  WARNING: with the global coord_scale the labels are only right for "
+                      "images at the assumed resolution — provide a scale table (tabella_scale).")
             if not DEBUG:
                 print("  Set DEBUG=True to inspect the Excel content.")
 
@@ -419,33 +534,54 @@ class TracciatiDataset(Dataset):
         """Number of valid (image, Excel) case pairs found on disk."""
         return len(self.samples)
 
+    def _in_pixel(self, found, scala):
+        """Raw Excel values -> pixels, and the pixel size of this case."""
+        if scala is None:
+            conv = {k: [x * self.coord_scale, y * self.coord_scale] for k, (x, y) in found.items()}
+            return conv, self.pixel_size
+        unita = self.unita_excel
+        if unita == "auto":
+            valori = [abs(v) for xy in found.values() for v in xy]
+            unita = "mm1000" if valori and float(np.median(valori)) > 3000 else "mm"
+        div = 1000.0 if unita == "mm1000" else 1.0
+        conv = {k: [x / div * scala, y / div * scala] for k, (x, y) in found.items()}
+        return conv, 1.0 / scala
+
     def __getitem__(self, idx):
         """
         Loads one case: reads the grayscale image, parses the matching Excel
-        file into recognized landmarks, zero-pads to NUM_LANDMARKS=26, and
-        fills in Gn (13) as the midpoint of Me (3) and Pog (6) whenever Gn
-        itself wasn't annotated but both of those were (this landmark is
-        rarely marked explicitly in the clinics' tracings).
-        Returns (image_tensor, landmarks_tensor); landmarks not found stay
-        at [0, 0] and are masked out downstream (see datasets.py).
+        file into recognized landmarks, converts them to pixels (per-case
+        scale when known), zero-pads to NUM_LANDMARKS=26, and fills in Gn (13)
+        as the midpoint of Me (3) and Pog (6) whenever Gn itself wasn't
+        annotated but both of those were (this landmark is rarely marked
+        explicitly in the clinics' tracings).
+        Returns (image_tensor, landmarks_tensor, pixel_size_tensor); landmarks
+        not found stay at [0, 0] and are masked out downstream (see datasets.py).
         """
-        img_path, excel_path = self.samples[idx]
+        img_path, excel_path, scala = self.samples[idx]
 
         image = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
         if image is None:
             image = np.zeros((1935, 2400), dtype=np.uint8)
-        h_img = image.shape[0]
+        h_img, w_img = image.shape[:2]
 
-        found = _parse_excel(excel_path,
-                             coord_scale=self.coord_scale,
-                             flip_y=self.flip_y,
-                             img_height=h_img)
+        found = _parse_excel(excel_path, coord_scale=1.0, flip_y=False, img_height=0)
 
         if not found and not DEBUG:
             print(f"\n[TracciatiDataset] NO LANDMARKS recognized in:\n"
                   f"  {excel_path}\n"
                   f"  → Set DEBUG=True and re-run to see the names used by the software.\n"
                   f"  → Then add them to NAME_MAP in dataset_tracciati.py")
+
+        found, pixel_size = self._in_pixel(found, scala)
+        if self.flip_y:
+            found = {k: [x, h_img - y] for k, (x, y) in found.items()}
+
+        fuori = [NOMI_26[k] for k, (x, y) in found.items()
+                 if not (-0.05 * w_img <= x <= 1.05 * w_img and -0.05 * h_img <= y <= 1.05 * h_img)]
+        if fuori:
+            print(f"[TracciatiDataset] WARNING {excel_path}: {len(fuori)} landmarks fall outside "
+                  f"the image ({', '.join(fuori)}) — check scale/units")
 
         # Zero-pad a NUM_LANDMARKS=26
         coords = [[0.0, 0.0]] * NUM_LANDMARKS
@@ -466,7 +602,7 @@ class TracciatiDataset(Dataset):
         img_tensor = torch.from_numpy(image).float().unsqueeze(0) / 255.0
         pts_tensor = torch.tensor(coords, dtype=torch.float32)
 
-        return img_tensor, pts_tensor
+        return img_tensor, pts_tensor, torch.tensor(pixel_size, dtype=torch.float32)
 
 
 # ─── Diagnostic script ─────────────────────────────────────────────────────────
@@ -486,10 +622,11 @@ if __name__ == "__main__":
     print(f"\nTotal samples: {len(ds)}")
 
     if len(ds) > 0:
-        img, pts = ds[0]
-        img_path, excel_path = ds.samples[0]
+        img, pts, ps = ds[0]
+        img_path, excel_path, scala = ds.samples[0]
         print(f"\nFirst sample: {img_path}")
         print(f"Image: {img.shape}  range [{img.min():.3f}, {img.max():.3f}]")
+        print(f"Scale: {scala} px/mm | pixel_size: {ps.item():.4f} mm/px")
 
         trovati  = [(NOMI_26[i], pts[i].tolist())
                     for i in range(NUM_LANDMARKS)
