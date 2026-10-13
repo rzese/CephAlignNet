@@ -259,6 +259,7 @@ def main():
     """CLI entry point: evaluates Stage 1 alone and Stage 1+Stage 2 on the
     Aariz+ISBI validation split, printing MRE/SDR reports and the
     improvement from adding Stage 2."""
+    print(f"\n{'='*55}\nEVALUATION\n{'='*55}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
     print(f"TTA: {CONFIG['tta_angoli']} + flip + photometric")

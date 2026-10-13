@@ -14,9 +14,9 @@ from src.heatmap_utils import heatmap_a_coordinate, HEATMAP_TRAIN_SIZE
 CONFIG = {
     "aariz_path":     "data/Aariz",
     "isbi_path":      "data/Cepha400",
-    "tracciati_path": "data/tracciati_forniti",
+    "tracciati_path": None, #"data/tracciati_forniti",
     "num_landmarks":  26,   # 19 original + UIT(19) + UIA(20) + LIA(21) + Ls(22) + Li(23) + Pog`(24) + Sn(25)
-    "batch_size":     8,
+    "batch_size":     16,
     "num_epochs":     400,
     "learning_rate":  2e-4,
     "val_split":      0.2,

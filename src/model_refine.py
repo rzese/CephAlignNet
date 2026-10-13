@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-MAX_OFFSET = 0.008   
+MAX_OFFSET = 0.016   
 
 try:
     from src.landmark_stats import REFINE_LANDMARK_MASK
@@ -16,10 +16,10 @@ except ImportError:
         REFINE_LANDMARK_MASK = {5, 9, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}
 
 # Output size of the ROI-align crop (square)
-ROI_OUTPUT_SIZE = 32
+ROI_OUTPUT_SIZE = 64
 
 # ROI radius in feature-map space
-ROI_HALF_SIZE = 16
+ROI_HALF_SIZE = 32
 
 
 class ChannelAttention(nn.Module):

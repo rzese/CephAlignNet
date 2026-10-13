@@ -19,12 +19,12 @@ except Exception as e:
 CONFIG = {
     "aariz_path":      "data/Aariz",
     "isbi_path":       "data/Cepha400",
-    "tracciati_path":  "data/tracciati_forniti",  # 100 new in-house images
+    "tracciati_path":  None, # "data/tracciati_forniti",  # 100 new in-house images
     "num_landmarks":   26,   # 19 original + UIT(19) + UIA(20) + LIA(21) + Ls(22) + Li(23) + Pog`(24) + Sn(25)
     "img_size":        512,
     "heatmap_size":    HEATMAP_TRAIN_SIZE,   # 256
     "sigma":           4.0,
-    "batch_size":      2,
+    "batch_size":      16,
     "num_epochs":      600,        # more epochs: more data, slower convergence
     "learning_rate":   3e-5,
     "val_split":       0.2,
