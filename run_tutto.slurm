@@ -45,6 +45,16 @@ if [ "$CONDA_ENV" != "none" ] && command -v conda >/dev/null 2>&1; then
     conda activate "$CONDA_ENV"
 fi
 
+# ── Pretrained HRNet weights without internet ───────────────────────────────
+# Compute nodes are offline: timm loads hrnet_w48.ms_in1k from the shared
+# Hugging Face cache of the cluster instead of downloading it.
+export HF_HUB_CACHE="${HF_HUB_CACHE:-/hpc/groups/users-ai/LLM/cache/hub}"
+export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+if ! ls "$HF_HUB_CACHE"/models--timm--hrnet_w48.ms_in1k/snapshots/*/model.safetensors >/dev/null 2>&1; then
+    echo "ERROR: hrnet_w48.ms_in1k weights not found in $HF_HUB_CACHE"
+    exit 1
+fi
+
 MODES="${MODES:-fixed learned_sigma probabilistic}"
 BATCH_HEATMAP="${BATCH_HEATMAP:-16}"
 BATCH_REFINE="${BATCH_REFINE:-16}"
