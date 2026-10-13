@@ -74,12 +74,16 @@ Unit tests (CPU, synthetic data): `PYTHONPATH=. python Test/test_unita.py`.
 22 Ls    23 Li     24 Pog` 25 Sn
 ```
 
-Landmarks 0–18 are the classic cephalometric set (also used by the public
-ISBI/Cepha400 dataset, whose 19 points are remapped into this indexing).
-Landmarks 19–21 (upper/lower incisor tip and apex) and 22–25 (soft-tissue
-points) are additional points annotated only in the Aariz and in-house
-Tracciati datasets, and are masked out for samples where they aren't
-available.
+Aariz annotates all 26 landmarks. The 19 points of the public ISBI/Cepha400
+dataset (ISBI 2015 challenge order) are remapped into this indexing: S, N, Or,
+Po, A, B, Pog, Me, Gn, Go, LIT, UIT, Ls, Li, Sn, Pog`, PNS, ANS, Ar. The
+landmarks an image does not have (for ISBI: Pn, R, Co, LPM, LMT, UIA, LIA) are
+masked out of the loss and of the metrics.
+
+> The mapping used before (`"legacy"` in `src/dataset_isbi.py`) mislabelled 15
+> of the 19 ISBI points; it was checked visually with
+> `Test/verifica_mappatura_isbi.py`. Checkpoints trained before this fix must be
+> retrained.
 
 ## Data
 

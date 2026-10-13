@@ -9,18 +9,14 @@ NUM_LANDMARKS = 26
 # Mapping from the ISBI/Cepha400 "P1..P19" landmark indices to this
 # project's canonical 26-landmark indexing (see dataset.py / SYMBOL_ORDER).
 #
-# !! TO BE VERIFIED ON THE DATA !!
-# "legacy" is the mapping this project has always used. It does NOT match the
-# landmark order published for the ISBI 2015 challenge (Wang et al. 2015/2016),
-# where L5 = subspinale (A), L6 = supramentale (B), L7 = pogonion, L8 = menton,
-# L9 = gnathion, L10 = gonion, L11 = lower incisal incision, L12 = upper
-# incisal incision, L13 = upper lip, L14 = lower lip, L15 = subnasale,
-# L16 = soft-tissue pogonion, L17 = PNS, L18 = ANS, L19 = articulare
-# ("standard" below). Only L1-L4 (S, N, Or, Po) agree.
-# Run  PYTHONPATH=. python Test/verifica_mappatura_isbi.py  and look at the
-# saved image to see which one is right, then set MAPPATURA_ISBI_DEFAULT.
-# Changing it changes the training labels of all 400 ISBI images: retrain
-# Stage 1 and Stage 2 afterwards.
+# "standard" is the landmark order published for the ISBI 2015 challenge
+# (Wang et al. 2015/2016) and has been VERIFIED visually on the data
+# (Test/verifica_mappatura_isbi.py, cases 001, 151, 301): every point lands on
+# the named anatomy.
+# "legacy" is the mapping used before: only P1-P4 (S, N, Or, Po) were right,
+# the other 15 points were mislabelled on all 400 ISBI images (e.g. P5 = A was
+# trained as Ar, P10 = Go as Pog, P13 = upper lip as Go). It is kept only to
+# reproduce old experiments. Models trained with it must be retrained.
 
 ISBI_P_TO_CANONICAL_LEGACY = {
     1:  10,   # P1  = S    → idx 10
@@ -69,7 +65,7 @@ MAPPATURE_ISBI = {"legacy": ISBI_P_TO_CANONICAL_LEGACY,
                   "standard": ISBI_P_TO_CANONICAL_STANDARD}
 
 # Mapping used everywhere (training, evaluation, statistics). See the note above.
-MAPPATURA_ISBI_DEFAULT = "legacy"
+MAPPATURA_ISBI_DEFAULT = "standard"
 
 # Kept for code that imports the old name
 ISBI_P_TO_CANONICAL = MAPPATURE_ISBI[MAPPATURA_ISBI_DEFAULT]
@@ -150,8 +146,9 @@ class ISBIDataset(Dataset):
         Loads one sample: reads the grayscale image, averages the junior
         and senior annotations, remaps the P1-P19 points to this project's
         canonical 26-landmark indices, and returns (image_tensor, landmarks_tensor).
-        Landmarks not covered by the P1-P19 mapping stay at [0, 0] and are
-        masked out downstream (see datasets.py).
+        Landmarks not covered by the P1-P19 mapping (with "standard": Pn, R,
+        Co, LPM, LMT, UIA, LIA) stay at [0, 0] and are masked out downstream
+        (see datasets.py).
         """
         n, img_path = self.samples[idx]
 
