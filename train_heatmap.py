@@ -25,7 +25,7 @@ NOMI = ["A","ANS","B","Me","N","Or","Pog","PNS","Pn","R","S","Ar","Co","Gn","Go"
 CONFIG = {
     "aariz_path":      "data/Aariz",
     "isbi_path":       "data/Cepha400",
-    "tracciati_path":  "data/tracciati_forniti",  # 100 new in-house images
+    "tracciati_path":  None,   # e.g. "data/tracciati_forniti" (100 in-house images); not used for now
     # CSV/Excel with columns case_id, scale_px_per_mm (e.g. coordinate_radiografie.xlsx).
     # Without it Tracciati use the global fallback scale (see dataset_tracciati.py).
     "tracciati_tabella_scale": None,

@@ -13,7 +13,7 @@ from src.inferenza import carica_stage1 as _carica_stage1, collate_base, decodif
 CONFIG = {
     "aariz_path":     "data/Aariz",
     "isbi_path":      "data/Cepha400",
-    "tracciati_path": "data/tracciati_forniti",
+    "tracciati_path": None,   # e.g. "data/tracciati_forniti"; not used for now
     "tracciati_tabella_scale": None,   # see train_heatmap.py
     "num_landmarks":  26,   # 19 original + UIT(19) + UIA(20) + LIA(21) + Ls(22) + Li(23) + Pog`(24) + Sn(25)
     "batch_size":     8,
