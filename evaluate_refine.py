@@ -8,7 +8,7 @@ from src.datasets import Datasets, crea_split
 from src.heatmap_utils import HEATMAP_TRAIN_SIZE
 from src.inferenza import (carica_stage1 as _carica_stage1, carica_stage2, collate_base,
                            decodifica as _decodifica, predici_con_tta as _predici_con_tta,
-                           applica_stage2 as _applica_stage2, errori_mm)
+                           applica_stage2 as _applica_stage2, errori_mm, seleziona_punti)
 from src.incertezza import (momenti_heatmap, cov_in_mm, sigma_radiale, analisi_incertezza,
                             stampa_analisi_incertezza, FONTI_INCERTEZZA)
 
@@ -29,6 +29,12 @@ CONFIG = {
     "hrnet_channels":    [192, 384, 768, 1536],
     "usa_tta":           True,
     "tta_angoli":        [-5.0, -2.5, 0.0, 2.5, 5.0],
+    # Which points Stage 2 corrects: "tutti" | "maschera" (REFINE_LANDMARK_MASK) |
+    # "incertezza" (sigma_tta > soglia_sigma_tta_mm; needs usa_tta). The threshold
+    # depends on the Stage 1 model: analisi_stage2.py prints the sigma_tta
+    # quantiles (0.45 mm was the 80th percentile = top 20% for "probabilistic").
+    "selezione_stage2":    "incertezza",
+    "soglia_sigma_tta_mm": 0.45,
     # Uncertainty analysis + calibration file used by predict_heatmap.py
     "analizza_incertezza": True,
     "copertura":           0.9,
@@ -48,8 +54,9 @@ CATEGORIA_DI = {i: cat for cat, idx in CATEGORIE.items() for i in idx}
 
 def collate_fn(batch, img_size=512):
     """Resizes images to img_size, normalizes landmark coordinates to
-    [0, 1] and keeps the original size (see src/inferenza.collate_base)."""
-    return collate_base(batch, img_size)
+    [0, 1] and keeps the original size and the original images, needed by
+    the image-based Stage 2 (see src/inferenza.collate_base)."""
+    return collate_base(batch, img_size, con_originali=True)
 
 
 def carica_stage1(config, device):
@@ -81,7 +88,7 @@ def calcola_mre_sdr(stage1, stage2, loader, device, config, raccogli_incertezza=
     record = {"img": [], "lm": [], "err": [], **{f"sigma_{f}": [] for f in FONTI_INCERTEZZA}}
     n_img = 0
     with torch.no_grad():
-        for immagini, punti, mask, _, pixel_sizes, dims in loader:
+        for immagini, punti, mask, _, pixel_sizes, dims, originali in loader:
             immagini, punti, mask = immagini.to(device), punti.to(device), mask.to(device)
             pixel_sizes, dims = pixel_sizes.to(device), dims.to(device)
 
@@ -89,7 +96,12 @@ def calcola_mre_sdr(stage1, stage2, loader, device, config, raccogli_incertezza=
             B, N = mask.shape
             pred_coords = out["coords"][:, :N, :]
             if stage2 is not None:
-                pred_coords = _applica_stage2(stage2, out["x_out"], pred_coords)
+                sel = seleziona_punti(config.get("selezione_stage2", "tutti"), B, N, device,
+                                      cov_tta=out["cov_tta"] if config.get("usa_tta", True) else None,
+                                      dims=dims, pixel_size=pixel_sizes,
+                                      soglia_mm=config.get("soglia_sigma_tta_mm"))
+                pred_coords = _applica_stage2(stage2, pred_coords, x_out=out["x_out"], originali=originali,
+                                              dims=dims, pixel_size=pixel_sizes, seleziona=sel)
             err = errori_mm(pred_coords, punti, dims, pixel_sizes)
 
             if raccogli_incertezza:
@@ -195,6 +207,9 @@ def main():
     stage2 = carica_stage2(CONFIG["stage2_path"], CONFIG["num_landmarks"], device)
     if stage2 is None:
         print("Stage 2 not found — evaluating Stage 1 only")
+    else:
+        print(f"Stage 2 applied to: {CONFIG['selezione_stage2']}"
+              + (f" (sigma_tta > {CONFIG['soglia_sigma_tta_mm']} mm)" if CONFIG["selezione_stage2"] == "incertezza" else ""))
 
     dataset = Datasets(aariz_path=CONFIG["aariz_path"], isbi_path=CONFIG["isbi_path"])
     _, val_ds = crea_split(dataset, CONFIG["val_split"], seed=42)

@@ -22,8 +22,8 @@ from src.heatmap_utils import (ruota_coordinate, augmenta, coordinate_a_heatmap,
                                geometric_consistency_loss)
 from src.incertezza import (SigmaAddestrabile, momenti_heatmap, cov_in_mm, sigma_radiale,
                             covarianza_tta, analisi_incertezza)
-from src.inferenza import errori_mm, applica_stage2, collate_base
-from src.model_refine import RefinementNet
+from src.inferenza import errori_mm, applica_stage2, collate_base, ritaglia_originali, seleziona_punti
+from src.model_refine import RefinementNet, ImageRefinementNet
 
 
 def _immagine_con_punto(px, py, H=512, W=512):
@@ -206,10 +206,87 @@ def test_stage2_vettorizzato_e_guardia():
     assert net.max_offset == 0.016
     x_out = torch.randn(2, 8, 64, 64)
     coords = torch.rand(2, 26, 2) * 0.6 + 0.2
-    out = applica_stage2(net, x_out, coords, landmark_da_correggere={3, 7})
+    out = applica_stage2(net, coords, x_out=x_out, landmark_da_correggere={3, 7})
     diff = (out - coords).abs()
     assert diff[:, [i for i in range(26) if i not in (3, 7)]].max() == 0
     assert diff.max() <= 0.016 * 1.2 + 1e-7
+
+
+def _immagine_con_punti(H, W, punti_px, raggio=4):
+    img = torch.zeros(1, H, W)
+    for x, y in punti_px:
+        img[0, int(y) - raggio:int(y) + raggio + 1, int(x) - raggio:int(x) + raggio + 1] = 1.0
+    return img
+
+
+def test_ritaglio_originale_centrato_in_mm():
+    """The crop is centered on the requested point and has the requested size in mm."""
+    H, W, ps = 600, 500, torch.tensor([0.1])
+    img = _immagine_con_punti(H, W, [(300, 200)], raggio=2)
+    errore_mm = torch.tensor([[2.0, -3.0]])                  # start 2 mm right, 3 mm up of the dot
+    centro = torch.tensor([[300.5 / W, 200.5 / H]]) + errore_mm / (torch.tensor([[W, H]]) * ps)
+    crop = ritaglia_originali([img], centro, torch.tensor([0]), ps, finestra_mm=12.8, crop_px=64)
+    assert crop.shape == (1, 1, 64, 64)
+    yy, xx = torch.nonzero(crop[0, 0] > crop[0, 0].mean() + 2 * crop[0, 0].std(), as_tuple=True)
+    pos_mm = (torch.stack([xx.float().mean(), yy.float().mean()]) + 0.5) / 64 * 12.8 - 6.4
+    assert torch.allclose(pos_mm, -errore_mm[0], atol=0.25), pos_mm
+
+
+def test_stage2_immagine_forma_guardia_e_selezione():
+    torch.manual_seed(0)
+    net = ImageRefinementNet(num_landmarks=4, finestra_mm=12.8, crop_px=64, max_offset_mm=2.0).eval()
+    off, logits = net(torch.randn(5, 1, 64, 64), torch.tensor([0, 1, 2, 3, 0]))
+    assert off.shape == (5, 2) and logits.shape == (5, 16, 16)
+    assert off.abs().max() <= 6.4                               # inside the crop
+    H, W = 300, 400
+    originali = [torch.rand(1, H, W), torch.rand(1, H, W)]
+    coords = torch.rand(2, 4, 2) * 0.6 + 0.2
+    dims, ps = torch.tensor([[W, H], [W, H]], dtype=torch.float32), torch.tensor([0.1, 0.1])
+    sel = torch.tensor([[True, False, False, True], [False, False, False, False]])
+    out = applica_stage2(net, coords, originali=originali, dims=dims, pixel_size=ps, seleziona=sel)
+    cambiati = (out != coords).any(dim=2)
+    assert not cambiati[~sel].any()                             # only selected points can move
+    spost_mm = (out - coords) * dims.view(-1, 1, 2) * ps.view(-1, 1, 1)
+    assert spost_mm.abs().max() <= 1.2 * 2.0 + 1e-5             # guard
+    # selection by uncertainty
+    cov = torch.zeros(2, 4, 2, 2); cov[0, 2] = torch.eye(2) * 1e-4   # sigma = sqrt(2e-4) * 40 mm = 0.57 mm
+    s = seleziona_punti("incertezza", 2, 4, "cpu", cov_tta=cov, dims=dims, pixel_size=ps, soglia_mm=0.45)
+    assert s.sum() == 1 and s[0, 2]
+
+
+def test_stage2_immagine_impara_a_ritrovare_il_punto():
+    """On synthetic radiographs (a landmark = a bright square), Stage 2 trained
+    with the train_refine.py sample generator learns to move a perturbed
+    point back onto the landmark: the error must drop by more than half."""
+    import train_refine as tr
+    torch.manual_seed(0); random.seed(0)
+    cfg = dict(tr.CONFIG, finestra_mm=12.8, crop_px=64, max_offset_mm=3.0, rumore_sigma_mm=1.5,
+               rumore_p_uniforme=0.3, rotazione_max_gradi=10.0, peso_nll=1.0)
+    rng = np.random.default_rng(0)
+
+    def lotto(n_img=6):
+        imgs, pts = [], []
+        for _ in range(n_img):
+            p = [(rng.uniform(80, 320), rng.uniform(80, 220)) for _ in range(2)]
+            im = _immagine_con_punti(300, 400, p, raggio=3) * 0.8 + torch.rand(1, 300, 400) * 0.2
+            imgs.append(im); pts.append(torch.tensor(p, dtype=torch.float32) + 0.5)
+        return imgs, torch.stack(pts), torch.ones(n_img, 2), torch.full((n_img,), 0.1)
+
+    net = ImageRefinementNet(num_landmarks=2, finestra_mm=12.8, crop_px=64, max_offset_mm=3.0)
+    opt = torch.optim.AdamW(net.parameters(), lr=2e-3)
+    net.train()
+    for _ in range(120):
+        crops, l_idx, target = tr.genera_batch(*lotto(), cfg, "cpu", training=True)
+        loss, _ = tr.calcola_loss(net, crops, l_idx, target, cfg)
+        opt.zero_grad(); loss.backward(); opt.step()
+    net.eval()
+    with torch.no_grad():
+        crops, l_idx, target = tr.genera_batch(*lotto(20), cfg, "cpu", training=False,
+                                               generator=torch.Generator().manual_seed(1))
+        pred, _ = net(crops, l_idx)
+    prima = target.norm(dim=1).mean().item()
+    dopo = (target - pred).norm(dim=1).mean().item()
+    assert dopo < 0.5 * prima, (prima, dopo)
 
 
 def test_crea_split_stabile_con_o_senza_tracciati():

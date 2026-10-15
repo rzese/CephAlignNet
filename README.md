@@ -17,11 +17,13 @@ The pipeline is split into two stages:
   (default) or an offset-voting scheme.
 
 - **Stage 2 — Refinement network (`model_refine.py`, `train_refine.py`)**
-  A smaller CNN with CBAM attention that takes a crop of Stage 1's fused
-  feature map around each predicted point and regresses a small correction
-  (`dx, dy`), bounded to a few millimeters. It's applied only to landmarks
-  that are historically harder to localize (see `REFINE_LANDMARK_MASK` in
-  `model_refine.py`); Stage 1 is frozen while Stage 2 trains.
+  `ImageRefinementNet` looks at a 25.6 mm crop of the **original
+  full-resolution radiograph** around the Stage 1 prediction and predicts,
+  through a small heatmap and soft-argmax, where the landmark is inside the
+  crop (correction up to 5 mm). It is trained without Stage 1, on
+  ground-truth points moved by synthetic errors, so it cannot simply echo
+  Stage 1. It can be applied to all points, to a fixed landmark mask, or
+  only to the points with high TTA uncertainty (`selezione_stage2`).
 
 At inference time (`predict_heatmap.py`), Stage 1 runs with test-time
 augmentation (rotations, horizontal flip, brightness/contrast jitter) and
@@ -52,7 +54,7 @@ Unit tests (CPU, synthetic data): `PYTHONPATH=. python Test/test_unita.py`.
 | File | Role |
 |---|---|
 | `model_hrnet.py` | Stage 1 model: HRNet-W48 backbone + multi-scale fusion head. Outputs a heatmap and two offset channels per landmark, plus the fused feature map used by Stage 2. |
-| `model_refine.py` | Stage 2 model: attention-based CNN that regresses a bounded (x, y) correction from a small ROI crop of the Stage 1 feature map. Defines `MAX_OFFSET` and `REFINE_LANDMARK_MASK` (which landmarks get refined). |
+| `model_refine.py` | Stage 2 models: `ImageRefinementNet` (current: crop of the original radiograph → heatmap → offset in mm) and the older `RefinementNet` (crop of the Stage 1 feature map, kept to load old checkpoints). Defines `REFINE_LANDMARK_MASK`. |
 | `incertezza.py` | Learnable heatmap sigma (`SigmaAddestrabile`), heatmap/TTA covariance, uncertainty calibration and evaluation. |
 | `inferenza.py` | Code shared by the scripts: checkpoint loading, decoding, TTA, Stage 2 application, collate and mm errors. |
 | `heatmap_utils.py` | Shared utilities: Gaussian heatmap generation, heatmap/offset losses (Adaptive Wing loss, combined loss), soft-argmax and voting decoders, the training-time augmentation pipeline (`augmenta`), a hard-landmark zoom-crop augmentation, and a geometric-consistency loss that penalizes anatomically implausible landmark configurations. |
@@ -61,7 +63,7 @@ Unit tests (CPU, synthetic data): `PYTHONPATH=. python Test/test_unita.py`.
 | `dataset_tracciati.py` | `TracciatiDataset` — loads an in-house dataset of clinic tracings: an image plus an Excel file with landmark coordinates. Includes a large name-matching table (`NAME_MAP`) to cope with inconsistent naming across different clinics/software, and a diagnostic mode (`DEBUG=True`, or running the file directly) to inspect unrecognized landmark names in a new Excel file. |
 | `datasets.py` | `Datasets` — aggregates Aariz + ISBI + (optionally) Tracciati into one dataset with a common output format `(image, points, mask, bbox, pixel_size)`, and builds the validity mask/bounding box for each sample. |
 | `train_heatmap.py` | Trains Stage 1 (HRNet). Builds the combined loss (heatmap + offset + coordinate Wing loss + geometric consistency), trains with early stopping and an LR scheduler, and saves the best checkpoint. |
-| `train_refine.py` | Trains Stage 2 (refinement network) on top of a **frozen** Stage 1 checkpoint. Uses a curriculum jittering strategy (large synthetic errors early in training, smaller ones later) so Stage 2 learns to correct realistic Stage 1 mistakes. |
+| `train_refine.py` | Trains the image-based Stage 2 on crops of the original radiographs centered on ground-truth points moved by synthetic errors (Gaussian ~1.5 mm mixed with uniform up to 5 mm); no Stage 1 needed. |
 | `evaluate_refine.py` | Evaluates Stage 1 alone and Stage 1+Stage 2 together on a validation split, computing **MRE** (Mean Radial Error, in mm) and **SDR** (Successful Detection Rate at several mm thresholds), globally, per anatomical category, and per landmark. |
 | `predict_heatmap.py` | Command-line inference script: loads both stage checkpoints, runs the full pipeline (with TTA) on a single image, prints the predicted coordinates, and displays them overlaid on the image. |
 

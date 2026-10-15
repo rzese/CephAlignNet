@@ -416,57 +416,73 @@ esiste: lo script vero è `src/analiz_land.py`.
 
 ---
 
-## 9. Stage 2 — `RefinementNet` (`src/model_refine.py`)
+## 9. Stage 2 — `ImageRefinementNet` (`src/model_refine.py`)
+
+Lo Stage 2 corregge la posizione di un punto guardando un **ritaglio della radiografia
+originale**, alla risoluzione piena, attorno alla predizione dello Stage 1.
+
+> **Perché è cambiato.** Il vecchio Stage 2 (`RefinementNet`, ancora caricabile per
+> valutare i checkpoint vecchi) guardava un ritaglio delle *feature dello Stage 1*.
+> Sulle immagini di training quelle feature "sanno" già dov'è il punto vero, perché lo
+> Stage 1 le ha viste centinaia di volte; sulle immagini nuove contengono lo stesso
+> errore dello Stage 1. Il risultato era una correzione dalla direzione casuale: secondo
+> `analisi_stage2.py` migliorava il 48% dei punti e ne peggiorava il 52%.
 
 ```
-ROI 32×32 da x_out (roi_align, finestra ±16 px nella feature map 256×256)
-  │ stem Conv3x3 → 256
-  │ ResBlock(256) con CBAM
-  │ down Conv s2 → 512 (16×16) → ResBlock(512) ──► avgpool → mid_feat [512]
-  │ down Conv s2 → 512 (8×8)  → ResBlock(512) ──► avgpool → deep_feat [512]
-  │ Embedding(26, 64) dell'indice del landmark
-  ▼
-concat [1088] → MLP 512 → 128 → 32 → 2 → Tanh × MAX_OFFSET  = (dx, dy) normalizzati
+radiografia originale (≈0.1 mm/px)
+     │  ritaglio 25.6 × 25.6 mm centrato sul punto dello Stage 1
+     ▼  (roi_align → 128 × 128 px = 0.2 mm/px, normalizzato media 0 / dev. std 1)
+encoder CNN (128 → 32 celle, blocchi residui con dilatazione 1-2-4-8)
+     ▼
+26 heatmap 32×32 (una per landmark) → si sceglie quella del landmark
+     ▼  softmax + baricentro (soft-argmax)
+posizione del landmark nel ritaglio → offset (dx, dy) in mm dal centro
 ```
 
-- **CBAM**: `ChannelAttention` (avg+max pool → MLP → sigmoid) e `SpatialAttention`
-  (conv 7×7 su avg/max lungo i canali).
-- L'embedding del landmark permette a un'unica rete di correggere tutti i punti,
-  sapendo di volta in volta quale sta correggendo.
-- **`MAX_OFFSET`** (correzione massima, normalizzata) vale attualmente **0.008**,
-  circa 1.9 mm con 2400 px × 0.1 mm/px. Il checkpoint in `model_no_unife/` è stato
-  addestrato con 0.016. Al caricamento viene usato il valore salvato nel checkpoint
-  (§16, punto 2).
-
----
+- **Dimensioni in mm, non in pixel**: la finestra è sempre di 25.6 mm, qualunque sia il
+  pixel size dell'immagine, quindi i ritagli sono confrontabili tra dataset diversi.
+- **Heatmap + baricentro invece di una regressione diretta**: la rete indica *dove* è il
+  punto nel ritaglio. Le convoluzioni conservano l'informazione spaziale, che il vecchio
+  regressore con pooling globale perdeva.
+- **Correzione massima** `max_offset_mm` (default 5 mm). In applicazione le correzioni
+  oltre 1.2 × 5 = 6 mm per asse vengono scartate (guardia).
 
 ## 10. Training dello Stage 2 (`train_refine.py`)
 
-1. `carica_stage1` carica `modello_heatmap.pth` e **congela** lo Stage 1
-   (`requires_grad = False`, modalità eval).
-2. Un forward fittizio ricava i canali di `x_out` (240) e crea `RefinementNet`.
-3. **`genera_batch_refine`**, per ogni immagine e landmark valido:
-   - Stage 1 senza TTA → coordinate con soft-argmax.
-   - `dx, dy = verità − predizione`. Il campione viene **scartato** se
-     `|dx|` o `|dy| > scarto_soglia` (= 1.5·MAX_OFFSET); altrimenti il target viene
-     limitato a ±MAX_OFFSET.
-   - **Curriculum jitter**: in training il punto di partenza viene spostato a caso di
-     ±`noise`. `noise` scende linearmente da `jitter_inizio` (1.5·MAX_OFFSET) a
-     `jitter_fine` (0.2·MAX_OFFSET) in `curriculum_ep` = 150 epoche. Il target viene
-     ricalcolato rispetto al punto spostato. Così la rete impara prima a fare
-     correzioni grandi, poi a rifinire.
-   - Ritaglio con `roi_align` sul punto (spostato).
-   - Vengono usati **tutti** i landmark, non solo quelli in `REFINE_LANDMARK_MASK`.
-4. **Loss**: Huber con `delta = MAX_OFFSET/2`.
-5. **Ottimizzazione**:
-   - AdamW con LR differenziati: backbone della RefinementNet a 0.3×LR; embedding e
-     regressore a LR pieno (2e-4)
-   - clipping a 2.0
-   - `ReduceLROnPlateau` (patience 25)
-   - early stopping con patience 120
-6. Con `resume = True` riparte da `modello_refine.pth`, se esiste.
-7. Salva `{epoca, model_state_dict, optimizer_state_dict, val_loss, config, max_offset,
-   arch='FeatureCropCNN', in_channels, decodifica_stage1}`.
+**Non serve lo Stage 1.** Per ogni landmark annotato:
+
+1. si parte dal **punto vero** e lo si sposta di un **errore sintetico** (in mm, per asse):
+   - con probabilità 70%: gaussiano, deviazione standard `rumore_sigma_mm` = 1.5 mm
+     (simile all'errore tipico dello Stage 1);
+   - con probabilità 30% (`rumore_p_uniforme`): uniforme fino a ±`max_offset_mm`
+     (gli errori grandi, quelli che lo Stage 2 deve correggere);
+2. si ritaglia la radiografia attorno al punto spostato;
+3. la rete deve indicare dov'è il punto vero nel ritaglio.
+
+Così lo Stage 2 non può "copiare" lo Stage 1: deve riconoscere l'anatomia.
+
+- **Augmentation**: rotazione ±10° del ritaglio (con il bersaglio ruotato di
+  conseguenza), contrasto e luminosità, rumore, blur occasionale.
+- **Loss**: Huber sull'offset in mm + `peso_nll` × NLL della posizione vera sulla
+  heatmap del ritaglio (come la modalità `probabilistic` dello Stage 1).
+- **Validazione**: stessi errori sintetici, ma con seed fisso, quindi confrontabili tra
+  epoche. Il log riporta l'errore medio e mediano **prima → dopo** lo Stage 2 e la
+  percentuale di punti migliorati: è il modo più diretto per vedere se sta imparando.
+- AdamW (LR 1e-3), `ReduceLROnPlateau`, early stopping (patience 30). Il checkpoint
+  salva `tipo_input = "immagine"`, `finestra_mm`, `crop_px` e `max_offset_mm`, che
+  `carica_stage2` usa per ricostruire la rete.
+
+**A quali punti si applica** (`selezione_stage2` in `evaluate_refine.py` e
+`predict_heatmap.py`):
+
+| Valore | Punti corretti |
+|---|---|
+| `"incertezza"` (default) | quelli con `sigma_tta` > `soglia_sigma_tta_mm` (default 0.45 mm, circa il 20% più incerto per il modello `probabilistic`; richiede la TTA) |
+| `"tutti"` | tutti i landmark |
+| `"maschera"` | quelli in `REFINE_LANDMARK_MASK` (`src/landmark_stats.py`) |
+
+La soglia dipende dal modello dello Stage 1: `analisi_stage2.py` mostra l'effetto per
+quintile di `sigma_tta` e la soglia migliore.
 
 ---
 

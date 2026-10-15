@@ -33,7 +33,7 @@ from torch.utils.data import DataLoader
 from src.datasets import Datasets, crea_split
 from src.heatmap_utils import HEATMAP_TRAIN_SIZE
 from src.inferenza import (carica_stage1, carica_stage2, collate_base, predici_con_tta,
-                           estrai_roi, errori_mm)
+                           applica_stage2, errori_mm)
 from src.incertezza import momenti_heatmap, cov_in_mm, sigma_radiale
 
 NOMI = ["A","ANS","B","Me","N","Or","Pog","PNS","Pn","R","S","Ar","Co","Gn","Go","Po",
@@ -54,19 +54,21 @@ CONFIG = {
 }
 
 
-def stage2_su_tutti(stage2, x_out, coords, fattore_guardia):
-    """Stage 2 offsets for all landmarks of a batch.
-    Returns (corrected coords [B,N,2], offsets [B,N,2], guard_ok [B,N])."""
+def stage2_su_tutti(stage2, coords, config, x_out=None, originali=None, dims=None, ps=None):
+    """Stage 2 applied to all landmarks of a batch (either kind of Stage 2).
+    Returns (corrected coords [B,N,2], proposed offsets [B,N,2] normalized,
+    guard_ok [B,N])."""
     B, N, _ = coords.shape
-    dev = coords.device
-    b_idx = torch.arange(B, device=dev).repeat_interleave(N)
-    l_idx = torch.arange(N, device=dev).repeat(B)
-    c = coords.reshape(-1, 2)
-    with torch.no_grad():
-        offset = stage2(estrai_roi(x_out, c[:, 0], c[:, 1], b_idx), l_idx)
-    ok = (offset.abs() <= fattore_guardia * stage2.max_offset).all(dim=1)
-    corr = torch.where(ok.unsqueeze(1), c + offset, c)
-    return corr.view(B, N, 2), offset.view(B, N, 2), ok.view(B, N)
+    grezzo = applica_stage2(stage2, coords, x_out=x_out, originali=originali, dims=dims, pixel_size=ps,
+                            landmark_da_correggere=range(N), fattore_guardia=1e9)
+    offset = grezzo - coords
+    g = config["fattore_guardia"]
+    if getattr(stage2, "tipo_input", "feature") == "immagine":
+        off_mm = offset * dims.view(-1, 1, 2) * ps.view(-1, 1, 1)
+        ok = (off_mm.abs() <= g * stage2.max_offset_mm).all(dim=2)
+    else:
+        ok = (offset.abs() <= g * stage2.max_offset).all(dim=2)
+    return torch.where(ok.unsqueeze(-1), grezzo, coords), offset, ok
 
 
 def raccogli(stage1, stage2, loader, device, config):
@@ -74,12 +76,13 @@ def raccogli(stage1, stage2, loader, device, config):
     r = {k: [] for k in ("img", "lm", "err1", "err2", "sigma_tta", "sigma_heatmap",
                          "corr_mm", "guardia_ok")}
     n_img = 0
-    for immagini, punti, mask, _, ps, dims in loader:
+    for immagini, punti, mask, _, ps, dims, originali in loader:
         immagini, punti, mask = immagini.to(device), punti.to(device), mask.to(device)
         ps, dims = ps.to(device), dims.to(device)
         out = predici_con_tta(stage1, immagini, config)
         c1 = out["coords"][:, :mask.shape[1]]
-        c2, offset, ok = stage2_su_tutti(stage2, out["x_out"], c1, config["fattore_guardia"])
+        c2, offset, ok = stage2_su_tutti(stage2, c1, config, x_out=out["x_out"], originali=originali,
+                                         dims=dims, ps=ps)
 
         e1 = errori_mm(c1, punti, dims, ps)
         e2 = errori_mm(c2, punti, dims, ps)
@@ -176,6 +179,7 @@ def report(r, max_corr_mm, maschera_fissa):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", required=True, help="experiment folder with modello_heatmap.pth and modello_refine.pth")
+    ap.add_argument("--stage2", help="Stage 2 checkpoint (default: <dir>/modello_refine.pth)")
     ap.add_argument("--batch-size", type=int)
     ap.add_argument("--no-tta", action="store_true")
     a = ap.parse_args()
@@ -188,14 +192,15 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device} | dir: {a.dir} | TTA: {CONFIG['usa_tta']}")
     stage1 = carica_stage1(CONFIG, device)
-    stage2 = carica_stage2(os.path.join(a.dir, "modello_refine.pth"), CONFIG["num_landmarks"], device)
+    percorso_s2 = a.stage2 or os.path.join(a.dir, "modello_refine.pth")
+    stage2 = carica_stage2(percorso_s2, CONFIG["num_landmarks"], device)
     if stage2 is None:
-        raise SystemExit(f"modello_refine.pth not found in {a.dir}")
+        raise SystemExit(f"{percorso_s2} not found")
 
     dataset = Datasets(aariz_path=CONFIG["aariz_path"], isbi_path=CONFIG["isbi_path"])
     _, val_ds = crea_split(dataset, CONFIG["val_split"], seed=42)
     loader = DataLoader(val_ds, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=0,
-                        collate_fn=partial(collate_base, img_size=CONFIG["img_size"]))
+                        collate_fn=partial(collate_base, img_size=CONFIG["img_size"], con_originali=True))
 
     # Fixed Stage 2 mask of THIS experiment (run_tutto.slurm saves it in --dir and
     # removes src/landmark_stats.py at the end)
@@ -209,15 +214,20 @@ def main():
 
     r = raccogli(stage1, stage2, loader, device, CONFIG)
 
-    # Maximum correction in mm, for a typical image of this validation set
-    # (normalized MAX_OFFSET x mean image side x pixel size)
-    dims = np.array([val_ds[k][0].shape[1:] for k in range(min(len(val_ds), 50))], float)
-    ps = np.array([float(val_ds[k][4]) for k in range(min(len(val_ds), 50))])
-    max_corr_mm = float(stage2.max_offset * np.sqrt(2) * np.mean(dims.mean(axis=1) * ps))
+    # Maximum correction (radial, mm)
+    if getattr(stage2, "tipo_input", "feature") == "immagine":
+        max_corr_mm = stage2.max_offset_mm * np.sqrt(2)
+    else:
+        # normalized MAX_OFFSET x mean image side x pixel size, on a typical image of this set
+        dims = np.array([val_ds[k][0].shape[1:] for k in range(min(len(val_ds), 50))], float)
+        ps = np.array([float(val_ds[k][4]) for k in range(min(len(val_ds), 50))])
+        max_corr_mm = float(stage2.max_offset * np.sqrt(2) * np.mean(dims.mean(axis=1) * ps))
 
     report(r, max_corr_mm, maschera_fissa)
 
-    out = os.path.join(a.dir, "analisi_stage2.csv")
+    nome = "analisi_stage2.csv" if not a.stage2 else \
+        f"analisi_stage2_{os.path.splitext(os.path.basename(a.stage2))[0]}.csv"
+    out = os.path.join(a.dir, nome)
     with open(out, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["img", "landmark"] + [k for k in r if k not in ("img", "lm")])

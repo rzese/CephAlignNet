@@ -1,7 +1,7 @@
 import torch, cv2, numpy as np, sys, os, json
 
 from src.heatmap_utils import HEATMAP_TRAIN_SIZE
-from src.inferenza import carica_stage1, carica_stage2, predici_con_tta, applica_stage2
+from src.inferenza import carica_stage1, carica_stage2, predici_con_tta, applica_stage2, seleziona_punti
 from src.incertezza import momenti_heatmap, cov_in_mm, sigma_radiale
 
 USE_VOTING = False   # False = soft-argmax (stable), True = regression voting
@@ -13,6 +13,9 @@ CONFIG = {
     "stage1_path":    "modello_heatmap.pth",
     "stage2_path":    "modello_refine.pth",
     "usa_stage2":     True,
+    # Which points Stage 2 corrects (see evaluate_refine.py): "tutti" | "maschera" | "incertezza"
+    "selezione_stage2":    "incertezza",
+    "soglia_sigma_tta_mm": 0.45,
     "usa_tta":        True,
     "tta_angoli":     [-5.0, -2.5, 0.0, 2.5, 5.0],
     "hrnet_channels": [192, 384, 768, 1536],
@@ -83,11 +86,15 @@ def predici(stage1, stage2, img_path, device, config):
 
     out = predici_con_tta(stage1, img_tensor, config, usa_voting=USE_VOTING)
     coords_norm = out["coords"]
-    if stage2 is not None:
-        coords_norm = applica_stage2(stage2, out["x_out"], coords_norm)
-
     dims = torch.tensor([[w_orig, h_orig]], dtype=torch.float32, device=device)
     ps   = torch.tensor([config["pixel_size_mm"]], dtype=torch.float32, device=device)
+    if stage2 is not None:
+        sel = seleziona_punti(config["selezione_stage2"], 1, coords_norm.shape[1], device,
+                              cov_tta=out["cov_tta"] if config["usa_tta"] else None,
+                              dims=dims, pixel_size=ps, soglia_mm=config["soglia_sigma_tta_mm"])
+        originale = torch.from_numpy(img_orig).float().unsqueeze(0) / 255.0
+        coords_norm = applica_stage2(stage2, coords_norm, x_out=out["x_out"], originali=[originale],
+                                     dims=dims, pixel_size=ps, seleziona=sel)
     _, cov_hm, picco = momenti_heatmap(out["pred_raw"][:, 0::3], stage1.heatmap_mode, stage1.griglia)
     incertezza = {
         "heatmap": sigma_radiale(cov_in_mm(cov_hm, dims, ps))[0].cpu().numpy(),
