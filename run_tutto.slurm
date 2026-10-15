@@ -21,7 +21,7 @@
 #SBATCH --job-name=ceph_tutto
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
-#SBATCH --partition=gpu_H100
+#SBATCH --partition=gpu_L40S
 #SBATCH --gres=gpu:1
 #SBATCH --mem=40G 
 #SBATCH --time=24:00:00
@@ -51,7 +51,7 @@ if ! ls "$HF_HUB_CACHE"/models--timm--hrnet_w48.ms_in1k/snapshots/*/model.safete
     exit 1
 fi
 
-MODES="${MODES:-fixed learned_sigma probabilistic}"
+MODES="${MODES:-learned_sigma}"
 BATCH_HEATMAP="${BATCH_HEATMAP:-16}"
 BATCH_REFINE="${BATCH_REFINE:-16}"
 OUT="${OUT:-esperimenti}"
@@ -86,17 +86,16 @@ for MODE in $MODES; do
 
     # Every mode starts from the same fallback statistics, so the comparison is fair
     rm -f "$STATS"
-
     echo "=== [$MODE] 1/3 Stage 1 training ==="
     python esegui_esperimento.py heatmap --mode "$MODE" --dir "$DIR" \
         --batch-size "$BATCH_HEATMAP" ${EPOCH_ARGS[@]+"${EPOCH_ARGS[@]}"} 2>&1 | tee "$DIR/1_train_heatmap.log"
-
-    # train_heatmap regenerates src/landmark_stats.py from this Stage 1
     if [ -f "$STATS" ]; then
         cp "$STATS" "$DIR/landmark_stats.py"
     else
         echo "WARNING: $STATS was not generated — Stage 2 will use the fallback mask"
     fi
+    
+    # train_heatmap regenerates src/landmark_stats.py from this Stage 1
 
     echo "=== [$MODE] 2/3 Stage 2 training ==="
     python esegui_esperimento.py refine --dir "$DIR" \
@@ -116,3 +115,5 @@ for MODE in $MODES; do
     echo "--- $MODE ---"
     grep -E "^Global MRE|within 2.0mm|Spearman\(sigma|coverage on held-out" "$OUT/$MODE/3_evaluate.log" || true
 done
+
+
