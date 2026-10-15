@@ -15,7 +15,7 @@ CONFIG = {
     "usa_stage2":     True,
     # Which points Stage 2 corrects (see evaluate_refine.py): "tutti" | "maschera" | "incertezza"
     "selezione_stage2":    "incertezza",
-    "soglia_sigma_tta_mm": 0.45,
+    "soglia_sigma_tta_mm": 0.25,
     "usa_tta":        True,
     "tta_angoli":     [-5.0, -2.5, 0.0, 2.5, 5.0],
     "hrnet_channels": [192, 384, 768, 1536],
