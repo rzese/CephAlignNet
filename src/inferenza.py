@@ -313,3 +313,63 @@ def applica_stage2(stage2, coords_norm, x_out=None, originali=None, dims=None, p
             ok = (offset.abs() <= fattore_guardia * stage2.max_offset).all(dim=1)
     out[b_idx[ok], l_idx[ok]] = c[ok] + offset[ok]
     return out
+
+
+# ─── Stage 2 (image-based): uncertainty and test-time augmentation ────────────
+def varianza_crop(logits, finestra_mm):
+    """Radial variance (mm^2, trace of the covariance) of the position
+    distribution predicted by ImageRefinementNet inside each crop."""
+    K, s, _ = logits.shape
+    p = torch.softmax(logits.reshape(K, -1), dim=1).view(K, s, s)
+    g = ((torch.arange(s, device=logits.device, dtype=torch.float32) + 0.5) / s - 0.5) * finestra_mm
+    px, py = p.sum(dim=1), p.sum(dim=2)              # marginals along x and y
+    vx = (px * g ** 2).sum(1) - (px * g).sum(1) ** 2
+    vy = (py * g ** 2).sum(1) - (py * g).sum(1) ** 2
+    return (vx + vy).clamp(min=0)
+
+
+def stage2_predizioni(stage2, centri_norm, b_idx, l_idx, originali, pixel_size,
+                      tta=False, spostamento_mm=0.4, angoli=(5.0, -5.0)):
+    """
+    Detailed predictions of the image-based Stage 2 for K points (no guard).
+
+    centri_norm [K,2] normalized starting positions, b_idx/l_idx [K] image and
+    landmark of each point, originali list of [1,H,W], pixel_size [B].
+    With tta=True Stage 2 also runs on crops whose center is moved by
+    +-spostamento_mm along x and y, and on crops rotated by each angle in
+    angoli; every answer is brought back to the original crop frame and
+    averaged.
+
+    Returns a dict of [K,...] tensors, offsets in mm from the starting point:
+      offset       single (un-augmented) prediction            [K,2]
+      offset_tta   mean over the TTA variants (= offset without TTA)
+      var_hm       mean radial variance of the crop distribution (mm^2) [K]
+      var_tta      radial variance of the TTA answers (mm^2, 0 without TTA) [K]
+    """
+    f = stage2.finestra_mm
+    dev = centri_norm.device
+    dims = torch.tensor([[im.shape[2], im.shape[1]] for im in originali], dtype=torch.float32, device=dev)
+    mm_per_unita = dims[b_idx] * pixel_size.to(dev)[b_idx].view(-1, 1)
+    varianti = [(0.0, 0.0, 0.0)]
+    if tta:
+        d = spostamento_mm
+        varianti += [(d, 0.0, 0.0), (-d, 0.0, 0.0), (0.0, d, 0.0), (0.0, -d, 0.0)]
+        varianti += [(0.0, 0.0, a) for a in angoli]
+    offs, varianze = [], []
+    with torch.no_grad():
+        for sx, sy, a in varianti:
+            shift = torch.tensor([sx, sy], device=dev)
+            crops = ritaglia_originali(originali, centri_norm + shift / mm_per_unita, b_idx, pixel_size,
+                                       f, stage2.crop_px)
+            if a:
+                crops = TF.rotate(crops, a, interpolation=TF.InterpolationMode.BILINEAR)
+            off, logits = stage2(crops, l_idx)
+            if a:   # answer is in the rotated crop: rotate it back
+                off = (ruota_coordinate(off / f + 0.5, -a) - 0.5) * f
+            offs.append(off + shift)
+            varianze.append(varianza_crop(logits, f))
+    offs = torch.stack(offs)                                      # [V, K, 2]
+    var_tta = ((offs - offs.mean(0)) ** 2).sum(-1).mean(0) if len(varianti) > 1 \
+        else torch.zeros(offs.shape[1], device=dev)
+    return {"offset": offs[0], "offset_tta": offs.mean(0),
+            "var_hm": torch.stack(varianze).mean(0), "var_tta": var_tta}
