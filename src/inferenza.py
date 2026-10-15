@@ -13,11 +13,14 @@ import torchvision.transforms.functional as TF
 from torchvision.ops import roi_align
 
 from src.model_hrnet import HRNetLandmark
-from src.model_refine import (RefinementNet, MAX_OFFSET, ROI_OUTPUT_SIZE, ROI_HALF_SIZE,
-                              REFINE_LANDMARK_MASK)
+from src.model_refine import (RefinementNet, ImageRefinementNet, MAX_OFFSET, ROI_OUTPUT_SIZE,
+                              ROI_HALF_SIZE, REFINE_LANDMARK_MASK)
 from src.heatmap_utils import (heatmap_a_coordinate, regression_voting, ruota_coordinate,
                                HEATMAP_TRAIN_SIZE)
-from src.incertezza import TEMPERATURA_DECODIFICA, covarianza_tta
+from src.incertezza import TEMPERATURA_DECODIFICA, covarianza_tta, cov_in_mm, sigma_radiale
+
+# Which points Stage 2 is applied to (see seleziona_punti)
+MODI_SELEZIONE = ("tutti", "maschera", "incertezza")
 
 # HRNet channel layouts tried in turn until the checkpoint loads with strict=True
 CANALI_CANDIDATI = [[64, 128, 256, 512, 1024], [192, 384, 768, 1536], None,
@@ -72,14 +75,29 @@ def carica_stage1(config, device, congela=False):
 
 def carica_stage2(path, num_landmarks, device):
     """
-    Loads a Stage 2 checkpoint, rebuilding RefinementNet with the in_channels
-    and max_offset it was trained with (the current MAX_OFFSET constant only
-    applies to new training runs). Returns None if the file does not exist.
+    Loads a Stage 2 checkpoint of either kind (returns None if the file does
+    not exist):
+      - tipo_input "immagine": ImageRefinementNet, crops of the original
+        radiograph (current train_refine.py);
+      - tipo_input "feature" (old checkpoints): RefinementNet on crops of the
+        Stage 1 feature map, rebuilt with the in_channels and max_offset it
+        was trained with.
+    The model carries .tipo_input, used by applica_stage2.
     """
     import os
     if not os.path.exists(path):
         return None
     ckpt = torch.load(path, map_location=device, weights_only=False)
+    if ckpt.get("tipo_input") == "immagine":
+        stage2 = ImageRefinementNet(num_landmarks=num_landmarks, finestra_mm=ckpt["finestra_mm"],
+                                    crop_px=ckpt["crop_px"], max_offset_mm=ckpt["max_offset_mm"]).to(device)
+        stage2.load_state_dict(ckpt["model_state_dict"])
+        stage2.eval()
+        print(f"Stage 2 loaded (ImageRefinementNet on the original radiograph, window "
+              f"{stage2.finestra_mm} mm / {stage2.crop_px} px, max offset {stage2.max_offset_mm} mm, "
+              f"epoch={ckpt.get('epoca', '?')}, val_loss={ckpt.get('val_loss', 0):.4f})")
+        return stage2
+
     in_channels = ckpt.get("in_channels", 240)
     max_offset  = ckpt.get("max_offset", MAX_OFFSET)
     stage2 = RefinementNet(num_landmarks=num_landmarks, in_channels=in_channels,
@@ -87,20 +105,22 @@ def carica_stage2(path, num_landmarks, device):
     stage2.load_state_dict(ckpt["model_state_dict"])
     stage2.eval()
     nota = "" if abs(max_offset - MAX_OFFSET) < 1e-9 else f" (current MAX_OFFSET constant: {MAX_OFFSET})"
-    print(f"Stage 2 loaded ({ckpt.get('arch', 'CNN')}, in_ch={in_channels}, "
+    print(f"Stage 2 loaded ({ckpt.get('arch', 'CNN')} on Stage 1 features, in_ch={in_channels}, "
           f"max_offset={max_offset}{nota}, epoch={ckpt.get('epoca', '?')}, "
           f"val_loss={ckpt.get('val_loss', 0):.6f})")
     return stage2
 
 
 # ─── Batching ─────────────────────────────────────────────────────────────────
-def collate_base(batch, img_size=512):
+def collate_base(batch, img_size=512, con_originali=False):
     """
     Resizes images to img_size x img_size, normalizes landmark coordinates to
     [0, 1] and keeps the original image size, needed to convert errors and
     uncertainties back to mm on non-square images.
     Returns (images, points, masks, bboxes, pixel_sizes, dims) with
-    dims [B, 2] = original (W, H) in pixels.
+    dims [B, 2] = original (W, H) in pixels; with con_originali=True also,
+    as 7th element, the list of original-resolution images [1, H, W]
+    (needed by the image-based Stage 2).
     """
     immagini, punti, masks, bboxes, pixel_sizes = zip(*batch)
     imgs_r = [F.interpolate(img.unsqueeze(0), size=(img_size, img_size),
@@ -114,8 +134,9 @@ def collate_base(batch, img_size=512):
         p_s[:, 1] = p[:, 1] / H
         punti_n.append(p_s)
         dims.append(torch.tensor([W, H], dtype=torch.float32))
-    return (torch.stack(imgs_r), torch.stack(punti_n), torch.stack(list(masks)),
-            torch.stack(list(bboxes)), torch.stack(list(pixel_sizes)), torch.stack(dims))
+    out = (torch.stack(imgs_r), torch.stack(punti_n), torch.stack(list(masks)),
+           torch.stack(list(bboxes)), torch.stack(list(pixel_sizes)), torch.stack(dims))
+    return out + (list(immagini),) if con_originali else out
 
 
 def errori_mm(pred, gt, dims, pixel_size):
@@ -202,26 +223,93 @@ def estrai_roi(feat_map, cx_norm, cy_norm, batch_idx):
     return roi_align(feat_map, rois, output_size=ROI_OUTPUT_SIZE, spatial_scale=1.0, aligned=True)
 
 
-def applica_stage2(stage2, x_out, coords_norm, landmark_da_correggere=None, fattore_guardia=1.2):
+def ritaglia_originali(originali, centri_norm, b_idx, pixel_size, finestra_mm, crop_px):
     """
-    Applies Stage 2 to the landmarks in landmark_da_correggere (default
-    REFINE_LANDMARK_MASK) of a whole batch in one forward pass. A correction is
-    kept only if |dx| and |dy| stay within fattore_guardia * stage2.max_offset.
+    Crops of the original radiographs: for every k, a finestra_mm x finestra_mm
+    square centered on centri_norm[k] (normalized coordinates) of image
+    originali[b_idx[k]], resampled to crop_px x crop_px with roi_align (zero
+    outside the image) and standardized (zero mean, unit std) per crop.
+    originali: list of [1, H, W] tensors; pixel_size [B] in mm/px.
+    Returns [K, 1, crop_px, crop_px].
     """
-    landmark = sorted(REFINE_LANDMARK_MASK if landmark_da_correggere is None else landmark_da_correggere)
+    dev = centri_norm.device
+    crops = torch.zeros(len(b_idx), 1, crop_px, crop_px, device=dev)
+    for b in torch.unique(b_idx).tolist():
+        sel = (b_idx == b).nonzero(as_tuple=True)[0]
+        img = originali[b].to(dev).float().unsqueeze(0)               # [1, 1, H, W]
+        H, W = img.shape[-2:]
+        half = finestra_mm / 2.0 / float(pixel_size[b])                # px
+        cx = centri_norm[sel, 0] * W
+        cy = centri_norm[sel, 1] * H
+        boxes = torch.stack([torch.zeros_like(cx), cx - half, cy - half, cx + half, cy + half], dim=1)
+        crops[sel] = roi_align(img, boxes, output_size=crop_px, spatial_scale=1.0,
+                               sampling_ratio=2, aligned=True)
+    m = crops.mean(dim=(2, 3), keepdim=True)
+    sd = crops.std(dim=(2, 3), keepdim=True)
+    return (crops - m) / (sd + 1e-6)
+
+
+def seleziona_punti(modo, B, N, device, cov_tta=None, dims=None, pixel_size=None, soglia_mm=None):
+    """
+    Which points Stage 2 is applied to, as a bool tensor [B, N]:
+      "tutti"       every landmark
+      "maschera"    the landmarks in REFINE_LANDMARK_MASK (src/landmark_stats.py)
+      "incertezza"  the points whose TTA spread (sigma_tta, mm) exceeds soglia_mm
+                    — needs cov_tta (i.e. TTA on), dims and pixel_size
+    """
+    if modo == "tutti":
+        return torch.ones(B, N, dtype=torch.bool, device=device)
+    if modo == "maschera":
+        sel = torch.zeros(B, N, dtype=torch.bool, device=device)
+        sel[:, [i for i in REFINE_LANDMARK_MASK if i < N]] = True
+        return sel
+    if modo == "incertezza":
+        if cov_tta is None or soglia_mm is None:
+            raise ValueError("selection 'incertezza' needs the TTA covariance and soglia_mm")
+        sigma = sigma_radiale(cov_in_mm(cov_tta, dims, pixel_size))[:, :N]
+        return sigma > soglia_mm
+    raise ValueError(f"unknown Stage 2 selection '{modo}', expected one of {MODI_SELEZIONE}")
+
+
+def applica_stage2(stage2, coords_norm, x_out=None, originali=None, dims=None, pixel_size=None,
+                   landmark_da_correggere=None, seleziona=None, fattore_guardia=1.2):
+    """
+    Applies Stage 2 to a batch of normalized coordinates [B, N, 2].
+
+    Which points: those of landmark_da_correggere (default: all landmarks for
+    the image-based Stage 2, REFINE_LANDMARK_MASK for the old one), further
+    restricted by the bool mask seleziona [B, N] if given (see seleziona_punti).
+
+    - image-based Stage 2 (stage2.tipo_input == "immagine"): crops of the
+      original radiographs (originali, dims, pixel_size required); a correction
+      is kept if |dx| and |dy| <= fattore_guardia * max_offset_mm.
+    - old feature-based Stage 2: crops of the Stage 1 feature map x_out; a
+      correction is kept if |dx| and |dy| <= fattore_guardia * max_offset.
+    """
     B, N, _ = coords_norm.shape
-    landmark = [i for i in landmark if i < N]
-    out = coords_norm.clone()
-    if not landmark:
-        return out
     dev = coords_norm.device
-    b_idx = torch.arange(B, device=dev).repeat_interleave(len(landmark))
-    l_idx = torch.tensor(landmark, device=dev).repeat(B)
+    immagine = getattr(stage2, "tipo_input", "feature") == "immagine"
+    if landmark_da_correggere is None:
+        landmark_da_correggere = range(N) if immagine else REFINE_LANDMARK_MASK
+    sel = torch.zeros(B, N, dtype=torch.bool, device=dev)
+    sel[:, [i for i in landmark_da_correggere if i < N]] = True
+    if seleziona is not None:
+        sel &= seleziona.to(dev)
+    out = coords_norm.clone()
+    if not sel.any():
+        return out
+    b_idx, l_idx = sel.nonzero(as_tuple=True)
     c = coords_norm[b_idx, l_idx]
+
     with torch.no_grad():
-        crops  = estrai_roi(x_out, c[:, 0], c[:, 1], b_idx)
-        offset = stage2(crops, l_idx)
-    guardia = fattore_guardia * stage2.max_offset
-    ok = (offset.abs() <= guardia).all(dim=1)
+        if immagine:
+            crops = ritaglia_originali(originali, c, b_idx, pixel_size, stage2.finestra_mm, stage2.crop_px)
+            offset_mm, _ = stage2(crops, l_idx)
+            ok = (offset_mm.abs() <= fattore_guardia * stage2.max_offset_mm).all(dim=1)
+            mm_per_unita = dims.to(dev)[b_idx] * pixel_size.to(dev)[b_idx].view(-1, 1)   # mm per normalized unit
+            offset = offset_mm / mm_per_unita
+        else:
+            offset = stage2(estrai_roi(x_out, c[:, 0], c[:, 1], b_idx), l_idx)
+            ok = (offset.abs() <= fattore_guardia * stage2.max_offset).all(dim=1)
     out[b_idx[ok], l_idx[ok]] = c[ok] + offset[ok]
     return out

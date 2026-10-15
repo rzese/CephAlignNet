@@ -1,259 +1,222 @@
-import os, random
+"""
+train_refine.py — trains Stage 2 on crops of the ORIGINAL radiograph.
+
+Stage 2 receives a finestra_mm x finestra_mm crop of the full-resolution image
+centered on a (wrong) landmark position and has to find where the landmark
+really is inside the crop (ImageRefinementNet, src/model_refine.py).
+
+Training does not need Stage 1: the starting position is the ground-truth
+point moved by a synthetic error, so Stage 2 cannot learn to "read back"
+Stage 1's own belief (the problem of the old feature-based Stage 2):
+  - with probability 1 - rumore_p_uniforme: Gaussian error, std rumore_sigma_mm per axis
+    (similar to the typical Stage 1 error)
+  - with probability rumore_p_uniforme: uniform error up to +-max_offset_mm per axis
+    (the rarer large errors Stage 2 is meant to fix)
+Training crops are also randomly rotated (the target is rotated with them) and
+photometrically perturbed. Validation uses the same synthetic errors with a
+fixed seed, so its numbers are comparable across epochs.
+
+Loss: Huber on the predicted offset (mm) + peso_nll * NLL of the true position
+under the crop heatmap.
+"""
+import random
+
 import torch
-import torch.optim as optim
 import torch.nn.functional as F
+import torch.optim as optim
+import torchvision.transforms.functional as TF
 from torch.utils.data import DataLoader
-from functools import partial
 
 from src.datasets import Datasets, crea_split
-from src.model_refine import RefinementNet, MAX_OFFSET
-from src.heatmap_utils import HEATMAP_TRAIN_SIZE
-from src.inferenza import carica_stage1 as _carica_stage1, collate_base, decodifica, estrai_roi
+from src.heatmap_utils import nll_heatmap_loss, ruota_coordinate
+from src.inferenza import ritaglia_originali
+from src.model_refine import ImageRefinementNet
 
 CONFIG = {
     "aariz_path":     "data/Aariz",
     "isbi_path":      "data/Cepha400",
     "tracciati_path": None,   # e.g. "data/tracciati_forniti"; not used for now
-    "tracciati_tabella_scale": None,   # see train_heatmap.py
-    "num_landmarks":  26,   # 19 original + UIT(19) + UIA(20) + LIA(21) + Ls(22) + Li(23) + Pog`(24) + Sn(25)
-    "batch_size":     8,
-    "num_epochs":     400,
-    "learning_rate":  2e-4,
+    "tracciati_tabella_scale": None,
+    "num_landmarks":  26,
+    "batch_size":     8,       # images per batch (each gives ~20-26 crops)
+    "num_workers":    4,
+    "num_epochs":     200,
+    "learning_rate":  1e-3,
     "val_split":      0.2,
-    "stage1_path":    "modello_heatmap.pth",
     "save_path":      "modello_refine.pth",
-    "img_size":       512,
-    "heatmap_size":   HEATMAP_TRAIN_SIZE,
-    "scarto_soglia":  MAX_OFFSET * 1.5,
-    "jitter_inizio":  MAX_OFFSET * 1.5,   # raised: forces Stage 2 to learn larger corrections
-    "jitter_fine":    MAX_OFFSET * 0.2,
-    "curriculum_ep":  150,
-    "patience":       120,                # raised from 80: more time to converge
-    # Checkpoint: if modello_refine.pth exists, resumes from it instead of starting over
-    # Set to True to continue training, False to start from scratch
-    "resume":         False,
+    "patience":       30,
+    # ── crop and correction range ──
+    "finestra_mm":    25.6,    # side of the crop (+-12.8 mm around the point)
+    "crop_px":        128,     # -> 0.2 mm per crop pixel
+    "max_offset_mm":  5.0,     # largest correction Stage 2 is trained for / allowed to apply
+    # ── synthetic starting errors ──
+    "rumore_sigma_mm":   1.5,
+    "rumore_p_uniforme": 0.3,
+    # ── augmentation ──
+    "rotazione_max_gradi": 10.0,
+    # ── loss ──
+    "peso_nll":       1.0,
 }
 
 
-def carica_stage1(config, device):
-    """
-    Loads the frozen Stage 1 model (weights not updated during Stage 2
-    training), trying several possible HRNet channel configurations until
-    one matches the saved checkpoint (see src/inferenza.py).
-    """
-    return _carica_stage1(config, device, congela=True)
-
-
-def predici_stage1(stage1, imgs, config):
-    """Runs Stage 1 on a batch and decodes its heatmaps into normalized
-    coordinates (with the decoding of the loaded checkpoint), also returning
-    the fused feature map (x_out) that Stage 2 will crop ROIs from."""
-    with torch.no_grad():
-        pred_raw, x_out = stage1(imgs)
-        coords = decodifica(pred_raw, stage1, config["heatmap_size"])
-    return coords, x_out
-
-
-def collate_fn(batch, img_size=512):
-    """Resizes images to img_size and normalizes landmark coordinates to
-    [0, 1] (see src/inferenza.collate_base)."""
-    return collate_base(batch, img_size)
+def collate_originali(batch):
+    """Keeps the original-resolution images (list of [1, H, W]) and the
+    landmark coordinates in pixels."""
+    immagini, punti, masks, _, pixel_sizes = zip(*batch)
+    return list(immagini), torch.stack(list(punti)), torch.stack(list(masks)), torch.stack(list(pixel_sizes))
 
 
 def prepara_dati(config):
-    """Builds the aggregated Datasets object, splits it into train/val
-    (same split as train_heatmap.py and evaluate_refine.py), and
-    returns the two DataLoaders."""
+    """Same train/validation split as every other script (crea_split)."""
     dataset = Datasets(aariz_path=config["aariz_path"], isbi_path=config["isbi_path"],
                        tracciati_path=config.get("tracciati_path"),
                        tracciati_tabella_scale=config.get("tracciati_tabella_scale"))
     train_ds, val_ds = crea_split(dataset, config["val_split"], seed=42)
-    fn = partial(collate_fn, img_size=config["img_size"])
-    return (DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=0, collate_fn=fn), DataLoader(val_ds, batch_size=config["batch_size"], shuffle=False, num_workers=0, collate_fn=fn))
+    kw = dict(batch_size=config["batch_size"], num_workers=config.get("num_workers", 0),
+              collate_fn=collate_originali)
+    return DataLoader(train_ds, shuffle=True, **kw), DataLoader(val_ds, shuffle=False, **kw)
 
 
-def genera_batch_refine(stage1, imgs, punti, masks, config, device, training=False, epoca=0):
+def errore_sintetico(K, config, generator=None):
+    """[K, 2] synthetic errors in mm (Gaussian mixed with uniform, clipped)."""
+    m = config["max_offset_mm"]
+    gauss = torch.randn(K, 2, generator=generator) * config["rumore_sigma_mm"]
+    unif = (torch.rand(K, 2, generator=generator) * 2 - 1) * m
+    usa_unif = torch.rand(K, 1, generator=generator) < config["rumore_p_uniforme"]
+    return torch.where(usa_unif, unif, gauss).clamp(-m, m)
+
+
+def genera_batch(immagini, punti, masks, ps, config, device, training, generator=None):
     """
-    Builds a training/validation batch for Stage 2 from a batch of images:
-    runs Stage 1 to get predicted coordinates, computes the (dx, dy) offset
-    to the ground truth for every valid landmark, discards samples where
-    Stage 1 was wildly wrong, and (during training) applies a curriculum
-    jitter to the input coordinate so Stage 2 learns to correct non-trivial
-    errors early on and finer ones later. Returns stacked (crops, targets,
-    landmark_indices), or (None, None, None) if the batch produced no
-    usable samples.
+    Builds the Stage 2 samples of a batch: one crop per annotated landmark,
+    centered on (true position + synthetic error).
+    Returns crops [K,1,S,S], landmark indices [K], target offsets [K,2] in mm
+    (from the crop center to the true point), or None if the batch is empty.
     """
-    pred_coords, x_out = predici_stage1(stage1, imgs, config)
-    crops_list, targets_list, indices_list = [], [], []
-    soglia = config["scarto_soglia"]
+    b_idx, l_idx = (masks == 1).nonzero(as_tuple=True)
+    if len(b_idx) == 0:
+        return None
+    K = len(b_idx)
+    errore_mm = errore_sintetico(K, config, generator)
+    dims = torch.tensor([[im.shape[2], im.shape[1]] for im in immagini], dtype=torch.float32)
+    mm_per_unita = dims[b_idx] * ps[b_idx].view(-1, 1)                 # mm per normalized unit
+    vero = punti[b_idx, l_idx] / dims[b_idx]                             # normalized
+    partenza = vero + errore_mm / mm_per_unita
+    target_mm = -errore_mm
 
-    # Curriculum: jitter decreases linearly over epochs
+    crops = ritaglia_originali(immagini, partenza.to(device), b_idx.to(device), ps,
+                               config["finestra_mm"], config["crop_px"])
     if training:
-        t = min(epoca / max(config.get("curriculum_ep", 150), 1), 1.0)
-        noise = (config.get("jitter_inizio", MAX_OFFSET * 0.8) * (1 - t) + config.get("jitter_fine",   MAX_OFFSET * 0.2) * t)
-    else:
-        noise = 0.0
-
-    for b in range(pred_coords.shape[0]):
-        for i in range(pred_coords.shape[1]):
-            if masks[b, i].item() != 1.0:
-                continue
-            cx_pred = pred_coords[b, i, 0].item()
-            cy_pred = pred_coords[b, i, 1].item()
-            cx_real = punti[b, i, 0].item()
-            cy_real = punti[b, i, 1].item()
-            dx = cx_real - cx_pred
-            dy = cy_real - cy_pred
-
-            # Only discard huge errors (Stage 1 completely wrong)
-            if abs(dx) > soglia or abs(dy) > soglia:
-                continue
-
-            dx = max(-MAX_OFFSET, min(MAX_OFFSET, dx))
-            dy = max(-MAX_OFFSET, min(MAX_OFFSET, dy))
-
-            if training and noise > 0:
-                # Curriculum jitter: high early on to force the model to learn
-                # non-trivial corrections, then reduced to refine precision
-                cx_in = max(0.01, min(0.99, cx_pred + random.uniform(-noise, noise)))
-                cy_in = max(0.01, min(0.99, cy_pred + random.uniform(-noise, noise)))
-                dx = max(-MAX_OFFSET, min(MAX_OFFSET, cx_real - cx_in))
-                dy = max(-MAX_OFFSET, min(MAX_OFFSET, cy_real - cy_in))
-            else:
-                cx_in, cy_in = cx_pred, cy_pred
-
-            roi_crop = estrai_roi(x_out, torch.tensor([cx_in], device=device),
-                                  torch.tensor([cy_in], device=device),
-                                  torch.tensor([b], device=device))
-            crops_list.append(roi_crop.squeeze(0))
-            targets_list.append(torch.tensor([dx, dy], dtype=torch.float32))
-            indices_list.append(torch.tensor(i, dtype=torch.long))
-
-    if not crops_list:
-        return None, None, None
-    return (torch.stack(crops_list).to(device), torch.stack(targets_list).to(device), torch.stack(indices_list).to(device))
+        crops, target_mm = augmenta_crop(crops, target_mm.to(device), config)
+    return crops, l_idx.to(device), target_mm.to(device)
 
 
-def train_un_epoca(stage1, refine, loader, optimizer, device, config, epoca=0):
-    """Runs one Stage 2 training epoch (Stage 1 stays frozen/eval) and
-    returns the average Huber loss on the predicted offsets."""
-    stage1.eval(); refine.train()
-    loss_totale, n_batch = 0.0, 0
-    for imgs, punti, masks, _, _, _ in loader:
-        imgs, punti, masks = imgs.to(device), punti.to(device), masks.to(device)
-        crops, targets, indices = genera_batch_refine(stage1, imgs, punti, masks,config, device, training=True, epoca=epoca)
-        if crops is None:
+def augmenta_crop(crops, target_mm, config):
+    """Random rotation (target rotated with the crop), contrast/brightness,
+    Gaussian noise and occasional blur on standardized crops."""
+    K = crops.shape[0]
+    f = config["finestra_mm"]
+    out = torch.empty_like(crops)
+    t = target_mm.clone()
+    for k in range(K):
+        a = random.uniform(-config["rotazione_max_gradi"], config["rotazione_max_gradi"])
+        out[k] = TF.rotate(crops[k], a, interpolation=TF.InterpolationMode.BILINEAR)
+        t_norm = (target_mm[k] / f + 0.5).view(1, 2)
+        t[k] = (ruota_coordinate(t_norm, a).view(2) - 0.5) * f
+    contrasto = torch.empty(K, 1, 1, 1, device=crops.device).uniform_(0.7, 1.3)
+    luminosita = torch.empty(K, 1, 1, 1, device=crops.device).uniform_(-0.3, 0.3)
+    out = out * contrasto + luminosita + torch.randn_like(out) * random.uniform(0.0, 0.15)
+    if random.random() < 0.3:
+        out = TF.gaussian_blur(out, kernel_size=5, sigma=random.uniform(0.3, 1.2))
+    return out, t
+
+
+def calcola_loss(model, crops, l_idx, target_mm, config):
+    pred_mm, logits = model(crops, l_idx)
+    t_norm = (target_mm / config["finestra_mm"] + 0.5).clamp(0, 1)
+    loss = F.huber_loss(pred_mm, target_mm, delta=1.0)
+    if config["peso_nll"] > 0:
+        uno = torch.ones(len(l_idx), 1, device=crops.device)
+        loss = loss + config["peso_nll"] * nll_heatmap_loss(logits.unsqueeze(1), t_norm.unsqueeze(1), uno)
+    return loss, pred_mm
+
+
+def train_un_epoca(model, loader, optimizer, device, config):
+    model.train()
+    tot, n = 0.0, 0
+    for immagini, punti, masks, ps in loader:
+        lotto = genera_batch(immagini, punti, masks, ps, config, device, training=True)
+        if lotto is None:
             continue
-        loss = F.huber_loss(refine(crops, indices), targets, delta=MAX_OFFSET * 0.5)
-        optimizer.zero_grad(); loss.backward()
-        torch.nn.utils.clip_grad_norm_(refine.parameters(), max_norm=2.0)
+        loss, _ = calcola_loss(model, *lotto, config)
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
         optimizer.step()
-        loss_totale += loss.item(); n_batch += 1
-    return loss_totale / max(n_batch, 1)
+        tot += loss.item(); n += 1
+    return tot / max(n, 1)
 
 
-def valida(stage1, refine, loader, device, config):
-    """Runs one Stage 2 validation pass (no jitter, no gradient updates)
-    and returns the average Huber loss."""
-    stage1.eval(); refine.eval()
-    loss_totale, n_batch = 0.0, 0
+def valida(model, loader, device, config):
+    """Loss and radial errors (mm) before/after Stage 2 on fixed synthetic errors."""
+    model.eval()
+    gen = torch.Generator().manual_seed(1234)
+    tot, n = 0.0, 0
+    prima, dopo = [], []
     with torch.no_grad():
-        for imgs, punti, masks, _, _, _ in loader:
-            imgs, punti, masks = imgs.to(device), punti.to(device), masks.to(device)
-            crops, targets, indices = genera_batch_refine(stage1, imgs, punti, masks, config, device, training=False)
-            if crops is None:
+        for immagini, punti, masks, ps in loader:
+            lotto = genera_batch(immagini, punti, masks, ps, config, device, training=False, generator=gen)
+            if lotto is None:
                 continue
-            loss_totale += F.huber_loss(refine(crops, indices), targets, delta=MAX_OFFSET * 0.5).item()
-            n_batch += 1
-    return loss_totale / max(n_batch, 1)
+            crops, l_idx, target_mm = lotto
+            loss, pred_mm = calcola_loss(model, crops, l_idx, target_mm, config)
+            tot += loss.item(); n += 1
+            prima.append(target_mm.norm(dim=1).cpu())
+            dopo.append((target_mm - pred_mm).norm(dim=1).cpu())
+    prima, dopo = torch.cat(prima), torch.cat(dopo)
+    return tot / max(n, 1), prima, dopo
 
 
 def main():
-    """CLI entry point: trains Stage 2 (refinement network) on top of a
-    frozen Stage 1 checkpoint, with curriculum jitter, LR scheduling,
-    early stopping, and optional resume from a previous checkpoint."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
-    print(f"MAX_OFFSET: {MAX_OFFSET:.4f} (~{MAX_OFFSET*2400*0.1:.2f}mm on a 2400px image at 0.1mm/px)")
-    print(f"Discard threshold: {CONFIG['scarto_soglia']:.4f}")
-
-    stage1 = carica_stage1(CONFIG, device)
-
-    with torch.no_grad():
-        dummy = torch.zeros(1, 1, CONFIG["img_size"], CONFIG["img_size"], device=device)
-        _, x_out = stage1(dummy)
-        in_channels = x_out.shape[1]
-        print(f"Feature map: {in_channels}ch × {x_out.shape[2]}×{x_out.shape[3]}")
-
-    refine = RefinementNet(num_landmarks=CONFIG["num_landmarks"], in_channels=in_channels,
-                           max_offset=MAX_OFFSET).to(device)
-
-    optimizer = optim.AdamW([
-        {"params": refine.stem.parameters(), "lr": CONFIG["learning_rate"] * 0.3},
-        {"params": refine.res1.parameters(), "lr": CONFIG["learning_rate"] * 0.3},
-        {"params": refine.res2.parameters(), "lr": CONFIG["learning_rate"] * 0.3},
-        {"params": refine.res3.parameters(), "lr": CONFIG["learning_rate"] * 0.3},
-        {"params": refine.down1.parameters(), "lr": CONFIG["learning_rate"] * 0.3},
-        {"params": refine.down2.parameters(), "lr": CONFIG["learning_rate"] * 0.3},
-        {"params": refine.landmark_embedding.parameters(), "lr": CONFIG["learning_rate"]},
-        {"params": refine.regressor.parameters(), "lr": CONFIG["learning_rate"]},
-    ], weight_decay=1e-4)
-
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau( optimizer, mode='min', patience=25, factor=0.5, min_lr=1e-6)
-
-# ── Checkpoint resume ───────────────────────────────────────────────────
-    epoca_inizio      = 1
-    migliore_val_loss = float('inf')
-    epoche_no_migl    = 0
-
-    if CONFIG.get("resume", False) and os.path.exists(CONFIG["save_path"]):
-        try:
-            ckpt = torch.load(CONFIG["save_path"], map_location=device, weights_only=False)
-            refine.load_state_dict(ckpt["model_state_dict"])
-            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-            epoca_inizio = ckpt.get("epoca", 1) + 1
-            migliore_val_loss = ckpt.get("val_loss", float('inf'))
-            print(f"Resumed from epoch {epoca_inizio-1} | "
-                  f"val_loss={migliore_val_loss:.6f}")
-        except Exception as e:
-            print(f"[WARN] Resume failed ({e}) — starting from scratch")
-            epoca_inizio      = 1
-            migliore_val_loss = float('inf')
-    else:
-        print("No checkpoint found — training from scratch")
-    # ────────────────────────────────────────────────────────────────────────
+    print(f"Stage 2 on the original radiograph: window {CONFIG['finestra_mm']} mm "
+          f"({CONFIG['finestra_mm'] / CONFIG['crop_px']:.2f} mm/px), max offset {CONFIG['max_offset_mm']} mm, "
+          f"synthetic error sigma {CONFIG['rumore_sigma_mm']} mm + {CONFIG['rumore_p_uniforme']:.0%} uniform")
 
     train_loader, val_loader = prepara_dati(CONFIG)
-    PATIENCE = CONFIG.get("patience", 120)
+    model = ImageRefinementNet(num_landmarks=CONFIG["num_landmarks"], finestra_mm=CONFIG["finestra_mm"],
+                               crop_px=CONFIG["crop_px"], max_offset_mm=CONFIG["max_offset_mm"]).to(device)
+    optimizer = optim.AdamW(model.parameters(), lr=CONFIG["learning_rate"], weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=8, factor=0.5, min_lr=1e-6)
 
-    for epoca in range(epoca_inizio, CONFIG["num_epochs"] + 1):
-        train_loss = train_un_epoca(stage1, refine, train_loader, optimizer, device, CONFIG, epoca=epoca)
-        val_loss   = valida(stage1, refine, val_loader, device, CONFIG)
+    migliore, senza_miglioramento = float("inf"), 0
+    for epoca in range(1, CONFIG["num_epochs"] + 1):
+        train_loss = train_un_epoca(model, train_loader, optimizer, device, CONFIG)
+        val_loss, prima, dopo = valida(model, val_loader, device, CONFIG)
         scheduler.step(val_loss)
-        lr = optimizer.param_groups[6]['lr']
-        t = min(epoca / CONFIG.get("curriculum_ep", 150), 1.0)
-        jitter_now = (CONFIG.get("jitter_inizio", MAX_OFFSET*1.5) * (1-t) + CONFIG.get("jitter_fine",   MAX_OFFSET*0.2) * t)
-        print(f"Epoch {epoca:3d}/{CONFIG['num_epochs']} | "
-              f"Train: {train_loss:.6f} | Val: {val_loss:.6f} | "
-              f"LR: {lr:.2e} | jitter: {jitter_now:.5f}")
-        if val_loss < migliore_val_loss:
-            migliore_val_loss = val_loss; epoche_no_migl = 0
+        migliorati = (dopo < prima).float().mean().item()
+        print(f"Epoch {epoca:3d}/{CONFIG['num_epochs']} | Train: {train_loss:.4f} | Val: {val_loss:.4f} | "
+              f"LR: {optimizer.param_groups[0]['lr']:.2e} | val error {prima.mean():.2f} -> {dopo.mean():.2f} mm "
+              f"(median {prima.median():.2f} -> {dopo.median():.2f}) | improved {migliorati:.1%}")
+        if val_loss < migliore:
+            migliore, senza_miglioramento = val_loss, 0
             torch.save({
-                'epoca': epoca,
-                'model_state_dict': refine.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'val_loss': val_loss,
-                'config': CONFIG,
-                'max_offset': MAX_OFFSET,
-                'arch': 'FeatureCropCNN',
-                'in_channels': in_channels,
-                'decodifica_stage1': 'soft-argmax',
-                'heatmap_mode_stage1': stage1.heatmap_mode,
+                "epoca": epoca,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "val_loss": val_loss,
+                "config": CONFIG,
+                "arch": "ImageRefinementNet",
+                "tipo_input": "immagine",
+                "finestra_mm": CONFIG["finestra_mm"],
+                "crop_px": CONFIG["crop_px"],
+                "max_offset_mm": CONFIG["max_offset_mm"],
             }, CONFIG["save_path"])
-            print(f"  → saved (val_loss: {val_loss:.6f})")
+            print(f"  → saved (val_loss: {val_loss:.4f})")
         else:
-            epoche_no_migl += 1
-            if epoche_no_migl >= PATIENCE:
+            senza_miglioramento += 1
+            if senza_miglioramento >= CONFIG["patience"]:
                 print(f"Early stopping at epoch {epoca}")
                 break
 

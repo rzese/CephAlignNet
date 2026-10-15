@@ -84,6 +84,8 @@ class RefinementNet(nn.Module):
     and regresses a bounded (x, y) offset correction in normalized image
     coordinates (via a final Tanh scaled by MAX_OFFSET).
     """
+    tipo_input = "feature"   # input: crop of the Stage 1 feature map (old Stage 2)
+
     def __init__(self, num_landmarks=26, in_channels=128, max_offset=None):
         super().__init__()
         self.in_channels = in_channels
@@ -145,3 +147,62 @@ class RefinementNet(nn.Module):
         emb = self.landmark_embedding(landmark_idx)            # [B, 64]
         fused = torch.cat([deep_feat, mid_feat, emb], dim=1)  # [B, 1088]
         return self.regressor(fused) * self.max_offset
+
+# ─── Stage 2 on the original radiograph ───────────────────────────────────────
+class _BloccoRes(nn.Module):
+    """Residual block with optional dilation (wider receptive field)."""
+    def __init__(self, ch, dilation=1):
+        super().__init__()
+        self.c1 = nn.Conv2d(ch, ch, 3, padding=dilation, dilation=dilation, bias=False)
+        self.b1 = nn.BatchNorm2d(ch)
+        self.c2 = nn.Conv2d(ch, ch, 3, padding=dilation, dilation=dilation, bias=False)
+        self.b2 = nn.BatchNorm2d(ch)
+
+    def forward(self, x):
+        r = F.relu(self.b1(self.c1(x)), inplace=True)
+        return F.relu(x + self.b2(self.c2(r)), inplace=True)
+
+
+class ImageRefinementNet(nn.Module):
+    """
+    Stage 2 that looks at the ORIGINAL radiograph instead of the Stage 1
+    features. Input: a crop of finestra_mm x finestra_mm centered on the Stage 1
+    prediction, resampled to crop_px x crop_px (fixed mm per pixel, so crops
+    are comparable across datasets with different pixel sizes).
+
+    The network predicts, for every landmark, a small logit heatmap over the
+    crop (crop_px / 4 cells per side); the channel of the requested landmark is
+    turned into a distribution (softmax) whose expectation is the landmark
+    position inside the crop. Returned offset = that position minus the crop
+    center, in mm. Translation-equivariant convolutions + soft-argmax keep the
+    spatial information that the old global-pooling regressor threw away.
+
+    forward(crop [K,1,S,S], landmark_idx [K]) -> (offset_mm [K,2], logits [K,S/4,S/4])
+    """
+    tipo_input = "immagine"
+
+    def __init__(self, num_landmarks=26, finestra_mm=25.6, crop_px=128, max_offset_mm=5.0):
+        super().__init__()
+        self.num_landmarks = num_landmarks
+        self.finestra_mm   = float(finestra_mm)
+        self.crop_px       = int(crop_px)
+        self.max_offset_mm = float(max_offset_mm)
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1, bias=False), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
+            nn.Conv2d(32, 32, 3, padding=1, bias=False), nn.BatchNorm2d(32), nn.ReLU(inplace=True),
+            nn.Conv2d(32, 64, 3, stride=2, padding=1, bias=False), nn.BatchNorm2d(64), nn.ReLU(inplace=True),
+            _BloccoRes(64),
+            nn.Conv2d(64, 128, 3, stride=2, padding=1, bias=False), nn.BatchNorm2d(128), nn.ReLU(inplace=True),
+            _BloccoRes(128), _BloccoRes(128, dilation=2), _BloccoRes(128, dilation=4), _BloccoRes(128, dilation=8),
+        )
+        self.head = nn.Conv2d(128, num_landmarks, 1)
+
+    def forward(self, crop, landmark_idx):
+        logits_tutti = self.head(self.encoder(crop))                    # [K, N, s, s]
+        K, _, s, _ = logits_tutti.shape
+        logits = logits_tutti[torch.arange(K, device=crop.device), landmark_idx]   # [K, s, s]
+        p = torch.softmax(logits.reshape(K, -1), dim=1).view(K, s, s)
+        griglia = (torch.arange(s, device=crop.device, dtype=torch.float32) + 0.5) / s - 0.5
+        dx = (p.sum(dim=1) * griglia).sum(dim=1)
+        dy = (p.sum(dim=2) * griglia).sum(dim=1)
+        return torch.stack([dx, dy], dim=1) * self.finestra_mm, logits
