@@ -1,0 +1,230 @@
+"""
+analisi_stage2.py — does Stage 2 actually fix Stage 1 errors, and would it help
+to apply it only where the uncertainty is high?
+
+Uses the checkpoints already trained (no training). On the validation split:
+  1. Stage 1 (with TTA) for every image, plus TTA and heatmap uncertainty.
+  2. Stage 2 applied to ALL 26 landmarks (with the usual guard), so its effect
+     can be measured everywhere, not only on the fixed mask.
+Reports:
+  A. MRE: Stage 1 / Stage 2 on the current fixed mask / on all landmarks /
+     ideal case (Stage 2 kept only where it helps = upper bound of any selection rule)
+  B. Stage 2 effect per uncertainty quintile: does it help on the uncertain points?
+  C. Threshold sweep: apply Stage 2 only where sigma > threshold. The threshold
+     is chosen on the even images and checked on the odd ones (honest estimate).
+  D. Per landmark effect.
+  E. How big the Stage 2 corrections are, how often the guard rejects them,
+     and how many errors are larger than the maximum correction.
+Writes one row per (image, landmark) to <dir>/analisi_stage2.csv.
+
+    python analisi_stage2.py --dir esperimenti/probabilistic
+    python analisi_stage2.py --dir esperimenti/fixed --batch-size 4
+"""
+import argparse
+import csv
+import os
+import runpy
+from functools import partial
+
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
+
+from src.datasets import Datasets, crea_split
+from src.heatmap_utils import HEATMAP_TRAIN_SIZE
+from src.inferenza import (carica_stage1, carica_stage2, collate_base, predici_con_tta,
+                           estrai_roi, errori_mm)
+from src.incertezza import momenti_heatmap, cov_in_mm, sigma_radiale
+
+NOMI = ["A","ANS","B","Me","N","Or","Pog","PNS","Pn","R","S","Ar","Co","Gn","Go","Po",
+        "LPM","LIT","LMT","UIT","UIA","LIA","Ls","Li","Pog`","Sn"]
+
+CONFIG = {
+    "aariz_path":    "data/Aariz",
+    "isbi_path":     "data/Cepha400",
+    "num_landmarks": 26,
+    "batch_size":    2,
+    "val_split":     0.2,
+    "img_size":      512,
+    "heatmap_size":  HEATMAP_TRAIN_SIZE,
+    "hrnet_channels": [64, 128, 256, 512, 1024],
+    "usa_tta":       True,
+    "tta_angoli":    [-5.0, -2.5, 0.0, 2.5, 5.0],
+    "fattore_guardia": 1.2,
+}
+
+
+def stage2_su_tutti(stage2, x_out, coords, fattore_guardia):
+    """Stage 2 offsets for all landmarks of a batch.
+    Returns (corrected coords [B,N,2], offsets [B,N,2], guard_ok [B,N])."""
+    B, N, _ = coords.shape
+    dev = coords.device
+    b_idx = torch.arange(B, device=dev).repeat_interleave(N)
+    l_idx = torch.arange(N, device=dev).repeat(B)
+    c = coords.reshape(-1, 2)
+    with torch.no_grad():
+        offset = stage2(estrai_roi(x_out, c[:, 0], c[:, 1], b_idx), l_idx)
+    ok = (offset.abs() <= fattore_guardia * stage2.max_offset).all(dim=1)
+    corr = torch.where(ok.unsqueeze(1), c + offset, c)
+    return corr.view(B, N, 2), offset.view(B, N, 2), ok.view(B, N)
+
+
+def raccogli(stage1, stage2, loader, device, config):
+    """One record per valid (image, landmark)."""
+    r = {k: [] for k in ("img", "lm", "err1", "err2", "sigma_tta", "sigma_heatmap",
+                         "corr_mm", "guardia_ok")}
+    n_img = 0
+    for immagini, punti, mask, _, ps, dims in loader:
+        immagini, punti, mask = immagini.to(device), punti.to(device), mask.to(device)
+        ps, dims = ps.to(device), dims.to(device)
+        out = predici_con_tta(stage1, immagini, config)
+        c1 = out["coords"][:, :mask.shape[1]]
+        c2, offset, ok = stage2_su_tutti(stage2, out["x_out"], c1, config["fattore_guardia"])
+
+        e1 = errori_mm(c1, punti, dims, ps)
+        e2 = errori_mm(c2, punti, dims, ps)
+        s_tta = sigma_radiale(cov_in_mm(out["cov_tta"], dims, ps))
+        _, cov_hm, _ = momenti_heatmap(out["pred_raw"][:, 0::3], stage1.heatmap_mode, stage1.griglia)
+        s_hm = sigma_radiale(cov_in_mm(cov_hm, dims, ps))
+        corr_mm = torch.sqrt(((offset * dims.view(-1, 1, 2)) ** 2).sum(-1)) * ps.view(-1, 1)
+
+        B, N = mask.shape
+        for b in range(B):
+            for i in range(N):
+                if mask[b, i].item() != 1.0:
+                    continue
+                r["img"].append(n_img + b); r["lm"].append(i)
+                r["err1"].append(e1[b, i].item()); r["err2"].append(e2[b, i].item())
+                r["sigma_tta"].append(s_tta[b, i].item()); r["sigma_heatmap"].append(s_hm[b, i].item())
+                r["corr_mm"].append(corr_mm[b, i].item()); r["guardia_ok"].append(bool(ok[b, i].item()))
+        n_img += B
+        print(f"\r  images processed: {n_img}", end="", flush=True)
+    print()
+    return {k: np.asarray(v) for k, v in r.items()}
+
+
+def mre_con_selezione(r, sel):
+    """MRE when Stage 2 is applied only where sel is True."""
+    return float(np.where(sel, r["err2"], r["err1"]).mean())
+
+
+def report(r, max_corr_mm, maschera_fissa):
+    e1, e2, lm = r["err1"], r["err2"], r["lm"]
+    maschera = np.isin(lm, sorted(maschera_fissa))
+
+    print(f"\n{'='*64}\nA. MRE (mm) — {len(e1)} points, {len(np.unique(r['img']))} images\n{'='*64}")
+    print(f"  Stage 1 only                         : {e1.mean():.3f}")
+    print(f"  Stage 2 on the current fixed mask    : {mre_con_selezione(r, maschera):.3f}"
+          f"   mask = {[NOMI[i] for i in sorted(maschera_fissa)]}")
+    print(f"  Stage 2 on all landmarks             : {e2.mean():.3f}")
+    print(f"  Ideal (Stage 2 only where it helps)  : {np.minimum(e1, e2).mean():.3f}"
+          f"   <- upper bound for ANY selection rule")
+    migliora = e2 < e1 - 1e-6
+    peggiora = e2 > e1 + 1e-6
+    print(f"  Stage 2 improves {migliora.mean():.1%} of the points, worsens {peggiora.mean():.1%}, "
+          f"leaves {1 - migliora.mean() - peggiora.mean():.1%} unchanged")
+
+    for fonte in ("sigma_tta", "sigma_heatmap"):
+        s = r[fonte]
+        print(f"\n{'='*64}\nB. Stage 2 effect per quintile of {fonte}\n{'='*64}")
+        print(f"  {'quintile':>8} {'sigma mm':>14} {'err S1':>7} {'err S2':>7} {'delta':>7} "
+              f"{'improves':>8} {'err>maxcorr':>11}")
+        bordi = np.quantile(s, [0, .2, .4, .6, .8, 1])
+        for k in range(5):
+            sel = (s >= bordi[k]) & ((s <= bordi[k + 1]) if k == 4 else (s < bordi[k + 1]))
+            print(f"  {k+1:>8} {bordi[k]:6.2f}-{bordi[k+1]:<6.2f} {e1[sel].mean():7.3f} {e2[sel].mean():7.3f} "
+                  f"{(e2[sel] - e1[sel]).mean():+7.3f} {migliora[sel].mean():8.1%} "
+                  f"{(e1[sel] > max_corr_mm).mean():11.1%}")
+
+        print(f"\nC. Apply Stage 2 only where {fonte} > threshold")
+        print(f"  {'threshold':>9} {'% corrected':>11} {'MRE all images':>14}")
+        soglie = np.quantile(s, [0, .5, .6, .7, .8, .9, .95, .99])
+        for t in soglie:
+            print(f"  {t:9.2f} {(s > t).mean():11.1%} {mre_con_selezione(r, s > t):14.3f}")
+        # honest estimate: threshold chosen on even images, measured on odd ones
+        pari = (r["img"] % 2) == 0
+        candidati = np.quantile(s[pari], np.linspace(0, 0.99, 100))
+        rp = {k: v[pari] for k, v in r.items()}
+        migliore = min(candidati, key=lambda t: mre_con_selezione(rp, rp[fonte] > t))
+        rd = {k: v[~pari] for k, v in r.items()}
+        print(f"  threshold chosen on even images: {migliore:.2f} mm -> on odd images "
+              f"MRE {rd['err1'].mean():.3f} (Stage 1) vs {mre_con_selezione(rd, rd[fonte] > migliore):.3f} "
+              f"(selective Stage 2), {(rd[fonte] > migliore).mean():.1%} corrected")
+
+    print(f"\n{'='*64}\nD. Per landmark (Stage 2 applied to every point)\n{'='*64}")
+    print(f"  {'':5s} {'err S1':>7} {'err S2':>7} {'delta':>7} {'improves':>8} {'in mask':>7}")
+    for i in range(len(NOMI)):
+        sel = lm == i
+        if not sel.any():
+            continue
+        print(f"  {NOMI[i]:5s} {e1[sel].mean():7.3f} {e2[sel].mean():7.3f} {(e2[sel] - e1[sel]).mean():+7.3f} "
+              f"{migliora[sel].mean():8.1%} {'yes' if i in maschera_fissa else '':>7}")
+
+    print(f"\n{'='*64}\nE. Size of the Stage 2 corrections\n{'='*64}")
+    c = r["corr_mm"]
+    print(f"  max correction allowed (MAX_OFFSET): ~{max_corr_mm:.2f} mm on this data")
+    print(f"  proposed correction: median {np.median(c):.3f} mm | 90th pct {np.quantile(c, .9):.3f} mm | "
+          f"max {c.max():.3f} mm")
+    print(f"  rejected by the guard: {(~r['guardia_ok']).mean():.1%}")
+    print(f"  Stage 1 error: median {np.median(e1):.2f} mm | errors > max correction: "
+          f"{(e1 > max_corr_mm).mean():.1%}")
+    print(f"  Spearman(correction size, Stage 1 error): "
+          f"{np.corrcoef(np.argsort(np.argsort(c)), np.argsort(np.argsort(e1)))[0, 1]:+.3f}"
+          f"   (near 0 = Stage 2 does not 'see' where Stage 1 is wrong)")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--dir", required=True, help="experiment folder with modello_heatmap.pth and modello_refine.pth")
+    ap.add_argument("--batch-size", type=int)
+    ap.add_argument("--no-tta", action="store_true")
+    a = ap.parse_args()
+    if a.batch_size:
+        CONFIG["batch_size"] = a.batch_size
+    if a.no_tta:
+        CONFIG["usa_tta"] = False
+    CONFIG["stage1_path"] = os.path.join(a.dir, "modello_heatmap.pth")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device} | dir: {a.dir} | TTA: {CONFIG['usa_tta']}")
+    stage1 = carica_stage1(CONFIG, device)
+    stage2 = carica_stage2(os.path.join(a.dir, "modello_refine.pth"), CONFIG["num_landmarks"], device)
+    if stage2 is None:
+        raise SystemExit(f"modello_refine.pth not found in {a.dir}")
+
+    dataset = Datasets(aariz_path=CONFIG["aariz_path"], isbi_path=CONFIG["isbi_path"])
+    _, val_ds = crea_split(dataset, CONFIG["val_split"], seed=42)
+    loader = DataLoader(val_ds, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=0,
+                        collate_fn=partial(collate_base, img_size=CONFIG["img_size"]))
+
+    # Fixed Stage 2 mask of THIS experiment (run_tutto.slurm saves it in --dir and
+    # removes src/landmark_stats.py at the end)
+    stats = os.path.join(a.dir, "landmark_stats.py")
+    if os.path.exists(stats):
+        maschera_fissa = set(runpy.run_path(stats)["REFINE_LANDMARK_MASK"])
+    else:
+        from src.model_refine import REFINE_LANDMARK_MASK as maschera_fissa
+        print(f"[WARN] {stats} not found: using the mask of src/landmark_stats.py or the fallback one")
+    print(f"Fixed Stage 2 mask: {[NOMI[i] for i in sorted(maschera_fissa)]}")
+
+    r = raccogli(stage1, stage2, loader, device, CONFIG)
+
+    # Maximum correction in mm, for a typical image of this validation set
+    # (normalized MAX_OFFSET x mean image side x pixel size)
+    dims = np.array([val_ds[k][0].shape[1:] for k in range(min(len(val_ds), 50))], float)
+    ps = np.array([float(val_ds[k][4]) for k in range(min(len(val_ds), 50))])
+    max_corr_mm = float(stage2.max_offset * np.sqrt(2) * np.mean(dims.mean(axis=1) * ps))
+
+    report(r, max_corr_mm, maschera_fissa)
+
+    out = os.path.join(a.dir, "analisi_stage2.csv")
+    with open(out, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["img", "landmark"] + [k for k in r if k not in ("img", "lm")])
+        for k in range(len(r["img"])):
+            w.writerow([r["img"][k], NOMI[r["lm"][k]]] + [r[c][k] for c in r if c not in ("img", "lm")])
+    print(f"\nPer-point data saved to {out}")
+
+
+if __name__ == "__main__":
+    main()
