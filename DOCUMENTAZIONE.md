@@ -477,7 +477,7 @@ Così lo Stage 2 non può "copiare" lo Stage 1: deve riconoscere l'anatomia.
 
 | Valore | Punti corretti |
 |---|---|
-| `"incertezza"` (default) | quelli con `sigma_tta` > `soglia_sigma_tta_mm` (default 0.45 mm, circa il 20% più incerto per il modello `probabilistic`; richiede la TTA) |
+| `"incertezza"` (default) | quelli con `sigma_tta` > `soglia_sigma_tta_mm` (default 0.25 mm, circa il 50% più incerto per il modello `probabilistic`: soglia scelta sulle immagini pari e verificata sulle dispari, MRE 1.099 → 1.060 mm; richiede la TTA) |
 | `"tutti"` | tutti i landmark |
 | `"maschera"` | quelli in `REFINE_LANDMARK_MASK` (`src/landmark_stats.py`) |
 

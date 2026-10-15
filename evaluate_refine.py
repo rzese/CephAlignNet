@@ -32,9 +32,11 @@ CONFIG = {
     # Which points Stage 2 corrects: "tutti" | "maschera" (REFINE_LANDMARK_MASK) |
     # "incertezza" (sigma_tta > soglia_sigma_tta_mm; needs usa_tta). The threshold
     # depends on the Stage 1 model: analisi_stage2.py prints the sigma_tta
-    # quantiles (0.45 mm was the 80th percentile = top 20% for "probabilistic").
+    # quantiles and the best threshold. For "probabilistic" + image-based Stage 2,
+    # 0.25 mm (~ the most uncertain 50% of the points) was chosen on the even
+    # validation images and confirmed on the odd ones (MRE 1.099 -> 1.060 mm).
     "selezione_stage2":    "incertezza",
-    "soglia_sigma_tta_mm": 0.45,
+    "soglia_sigma_tta_mm": 0.25,
     # Uncertainty analysis + calibration file used by predict_heatmap.py
     "analizza_incertezza": True,
     "copertura":           0.9,
