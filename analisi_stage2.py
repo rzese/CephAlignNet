@@ -34,7 +34,7 @@ from torch.utils.data import DataLoader
 from src.datasets import Datasets, crea_split
 from src.heatmap_utils import HEATMAP_TRAIN_SIZE
 from src.inferenza import (carica_stage1, carica_stage2, collate_base, predici_con_tta,
-                           applica_stage2, errori_mm)
+                           applica_stage2, errori_mm, stage2_predizioni)
 from src.incertezza import momenti_heatmap, cov_in_mm, sigma_radiale
 
 NOMI = ["A","ANS","B","Me","N","Or","Pog","PNS","Pn","R","S","Ar","Co","Gn","Go","Po",
@@ -52,6 +52,7 @@ CONFIG = {
     "usa_tta":       True,
     "tta_angoli":    [-5.0, -2.5, 0.0, 2.5, 5.0],
     "fattore_guardia": 1.2,
+    "tta_stage2":      True,    # also run Stage 2 with test-time augmentation (for strategie_stage2.py)
 }
 
 
@@ -74,8 +75,15 @@ def stage2_su_tutti(stage2, coords, config, x_out=None, originali=None, dims=Non
 
 def raccogli(stage1, stage2, loader, device, config):
     """One record per valid (image, landmark)."""
+    # Extra columns for strategie_stage2.py (image-based Stage 2 only; NaN otherwise):
+    #   e1x, e1y    Stage 1 error vector (prediction - truth), mm
+    #   d2x, d2y    Stage 2 proposed shift (single crop, no guard), mm
+    #   d2tx, d2ty  Stage 2 proposed shift with test-time augmentation, mm
+    #   s2_hm       spread of the Stage 2 crop distribution, mm
+    #   s2_tta      spread of the Stage 2 TTA answers, mm
+    extra = ("e1x", "e1y", "d2x", "d2y", "d2tx", "d2ty", "s2_hm", "s2_tta")
     r = {k: [] for k in ("img", "lm", "err1", "err2", "sigma_tta", "sigma_heatmap",
-                         "corr_mm", "guardia_ok")}
+                         "corr_mm", "guardia_ok") + extra}
     n_img = 0
     for immagini, punti, mask, _, ps, dims, originali in loader:
         immagini, punti, mask = immagini.to(device), punti.to(device), mask.to(device)
@@ -93,6 +101,19 @@ def raccogli(stage1, stage2, loader, device, config):
         corr_mm = torch.sqrt(((offset * dims.view(-1, 1, 2)) ** 2).sum(-1)) * ps.view(-1, 1)
 
         B, N = mask.shape
+        nan = torch.full((B, N), float("nan"), device=device)
+        col = {k: nan for k in extra}
+        e1v = (c1 - punti) * dims.view(-1, 1, 2) * ps.view(-1, 1, 1)
+        col["e1x"], col["e1y"] = e1v[..., 0], e1v[..., 1]
+        if getattr(stage2, "tipo_input", "feature") == "immagine":
+            b_idx = torch.arange(B, device=device).repeat_interleave(N)
+            l_idx = torch.arange(N, device=device).repeat(B)
+            det = stage2_predizioni(stage2, c1.reshape(-1, 2), b_idx, l_idx, originali, ps,
+                                    tta=config.get("tta_stage2", True))
+            col["d2x"], col["d2y"] = det["offset"][:, 0].view(B, N), det["offset"][:, 1].view(B, N)
+            col["d2tx"], col["d2ty"] = det["offset_tta"][:, 0].view(B, N), det["offset_tta"][:, 1].view(B, N)
+            col["s2_hm"] = det["var_hm"].sqrt().view(B, N)
+            col["s2_tta"] = det["var_tta"].sqrt().view(B, N)
         for b in range(B):
             for i in range(N):
                 if mask[b, i].item() != 1.0:
@@ -101,6 +122,8 @@ def raccogli(stage1, stage2, loader, device, config):
                 r["err1"].append(e1[b, i].item()); r["err2"].append(e2[b, i].item())
                 r["sigma_tta"].append(s_tta[b, i].item()); r["sigma_heatmap"].append(s_hm[b, i].item())
                 r["corr_mm"].append(corr_mm[b, i].item()); r["guardia_ok"].append(bool(ok[b, i].item()))
+                for k in extra:
+                    r[k].append(col[k][b, i].item())
         n_img += B
         print(f"\r  images processed: {n_img}", end="", flush=True)
     print()
@@ -285,6 +308,7 @@ def main():
         for k in range(len(r["img"])):
             w.writerow([r["img"][k], NOMI[r["lm"][k]]] + [r[c][k] for c in r if c not in ("img", "lm")])
     print(f"\nPer-point data saved to {out}")
+    print(f"Compare the ways of combining Stage 1 and Stage 2 with:  python strategie_stage2.py {out}")
 
 
 if __name__ == "__main__":

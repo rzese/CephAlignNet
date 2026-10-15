@@ -13,6 +13,7 @@ import zipfile
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -287,6 +288,33 @@ def test_stage2_immagine_impara_a_ritrovare_il_punto():
     prima = target.norm(dim=1).mean().item()
     dopo = (target - pred).norm(dim=1).mean().item()
     assert dopo < 0.5 * prima, (prima, dopo)
+
+
+def test_stage2_tta_riporta_le_risposte_nel_ritaglio_originale():
+    """With a 'perfect' Stage 2 (soft-argmax of the brightest spot), shifted
+    and rotated crops must give back the same offset as the plain crop."""
+    from src.inferenza import stage2_predizioni
+
+    class Perfetto(torch.nn.Module):
+        finestra_mm, crop_px, tipo_input = 12.8, 64, "immagine"
+
+        def forward(self, crop, l_idx):
+            # softmax(log(intensity)) = intensity-weighted centroid: exact and linear
+            logits = torch.log(F.avg_pool2d(crop.clamp(min=0), 4)[:, 0] + 1e-6)   # [K, 16, 16]
+            K, s, _ = logits.shape
+            p = torch.softmax(logits.reshape(K, -1), 1).view(K, s, s)
+            g = ((torch.arange(s, dtype=torch.float32) + 0.5) / s - 0.5) * self.finestra_mm
+            return torch.stack([(p.sum(1) * g).sum(1), (p.sum(2) * g).sum(1)], 1), logits
+
+    H, W, ps = 400, 500, torch.tensor([0.1])
+    img = _immagine_con_punti(H, W, [(250, 200)], raggio=6)
+    centri = torch.tensor([[250.5 / W, 200.5 / H], [(250.5 + 20) / W, (200.5 - 15) / H]])
+    out = stage2_predizioni(Perfetto(), centri, torch.tensor([0, 0]), torch.tensor([0, 0]), [img], ps,
+                            tta=True, spostamento_mm=0.4, angoli=(5.0, -5.0))
+    atteso = torch.tensor([[0.0, 0.0], [-2.0, 1.5]])               # mm from each center to the spot
+    assert torch.allclose(out["offset"], atteso, atol=0.3), out["offset"]
+    assert torch.allclose(out["offset_tta"], out["offset"], atol=0.15), (out["offset_tta"], out["offset"])
+    assert (out["var_tta"] < 0.05).all() and (out["var_hm"] > 0).all()
 
 
 def test_crea_split_stabile_con_o_senza_tracciati():
