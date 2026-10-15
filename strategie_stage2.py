@@ -27,8 +27,16 @@ images. "Ideal" rows (best of Stage 1 / Stage 2 per point, knowing the truth)
 are an unreachable upper bound.
 
     python strategie_stage2.py esperimenti/probabilistic/analisi_stage2.csv
+    python strategie_stage2.py <csv> --salva src/parametri_stage2.py   # also write the parameters
+
+With --salva the fusion parameters and the sigma_tta threshold are re-fitted on
+ALL the images and written to a module read by evaluate_refine.py and
+predict_heatmap.py (src/parametri_stage2.py). Do it only when you want to
+replace the measurement used by the following runs.
 """
+import argparse
 import csv
+import datetime
 import sys
 
 import numpy as np
@@ -182,9 +190,52 @@ def valuta(d, fit, chiave):
     return np.mean(risultati, axis=0), descr
 
 
+def scrivi_parametri(path, d, csv_path, tabella):
+    """Re-fits fusion and threshold on all images and writes the module."""
+    _, testo_fusione = fit_fusione(d, "d")
+    # recover the chosen parameters from the description "c=.. p=.. floor=.. mm"
+    parti = dict(x.split("=") for x in testo_fusione.replace(" mm", "").split())
+    c, p, f = float(parti["c"]), float(parti["p"]), float(parti["floor"])
+    _, testo_soglia = fit_soglia(d, "d")
+    soglia = float(testo_soglia.split(">")[1].replace("mm", ""))
+    corpo = "\n".join("  " + r for r in tabella)
+    with open(path, "w") as fh:
+        fh.write(f'''"""
+How Stage 2 is combined with Stage 1 — fixed parameters, read by
+evaluate_refine.py and predict_heatmap.py.
+
+Written by strategie_stage2.py on {datetime.date.today()} from {csv_path}
+(parameters re-fitted on all the images; table = 2-fold CV over even/odd images,
+objective = mean accuracy within 2 / 2.5 / 3 / 4 mm):
+
+{corpo}
+
+Not re-tuned automatically after a new training. To measure again:
+    python analisi_stage2.py --dir <experiment>
+    python strategie_stage2.py <experiment>/analisi_stage2.csv --salva src/parametri_stage2.py
+"""
+
+# "fusione" | "incertezza" | "tutti" | "maschera"  (see evaluate_refine.py)
+SELEZIONE_STAGE2 = "fusione"
+
+# Fusion weight of Stage 2: w = s1^p / (s1^p + (c * s2)^p), s1 = sqrt(sigma_tta^2 + floor^2)
+FUSIONE_STAGE2 = {{"c": {c:.3g}, "p": {p:g}, "floor_mm": {f:g}}}
+
+# Used only with SELEZIONE_STAGE2 = "incertezza": Stage 2 where sigma_tta > threshold
+SOGLIA_SIGMA_TTA_MM = {soglia:.3g}
+''')
+    print(f"\nParameters written to {path}: fusion c={c:.3g} p={p:g} floor={f:g} mm | threshold {soglia:.3g} mm")
+
+
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else "esperimenti/probabilistic/analisi_stage2.csv"
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("csv", nargs="?", default="esperimenti/probabilistic/analisi_stage2.csv")
+    ap.add_argument("--salva", help="write the parameters (fitted on all images) to this module, "
+                                    "e.g. src/parametri_stage2.py")
+    a = ap.parse_args()
+    path = a.csv
     d = carica(path)
+    tabella = []
     print(f"{len(d['img'])} points, {len(np.unique(d['img']))} images | objective: mean accuracy "
           f"within {', '.join(format(t, 'g') for t in SDR_MM)} mm | 2-fold CV over even/odd images\n")
     intest = f"{'strategy':34s} {'MRE':>6} " + " ".join(f"{'<' + format(t, 'g') + 'mm':>7}" for t in SDR_MM) \
@@ -202,7 +253,10 @@ def main():
         ]
     for nome, fit, chiave in righe:
         m, descr = valuta(d, fit, chiave)
-        print(f"{nome:34s} {m[0]:6.3f} " + " ".join(f"{x:7.1%}" for x in m[1:5]) + f" {m[5]:8.2%}   {descr}")
+        riga = f"{nome:34s} {m[0]:6.3f} " + " ".join(f"{x:7.1%}" for x in m[1:5]) + f" {m[5]:8.2%}"
+        print(f"{riga}   {descr}")
+        if chiave == "d":
+            tabella.append(riga)
 
     print("-" * len(intest))
     pari = (d["img"] % 2) == 0
@@ -211,6 +265,12 @@ def main():
         m = np.mean([metriche(ideale[pari]), metriche(ideale[~pari])], axis=0)   # same averaging as above
         print(f"{'Ideal (best of the two)' + suff:34s} {m[0]:6.3f} " + " ".join(f"{x:7.1%}" for x in m[1:5])
               + f" {m[5]:8.2%}   unreachable upper bound")
+
+
+    if a.salva:
+        scrivi_parametri(a.salva, d, path, [f"{'strategy':34s} {'MRE':>6} "
+                                            + " ".join(f"{'<' + format(t, 'g') + 'mm':>7}" for t in SDR_MM)
+                                            + f" {'mean acc':>8}"] + tabella)
 
 
 if __name__ == "__main__":

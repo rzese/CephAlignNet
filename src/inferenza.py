@@ -20,7 +20,27 @@ from src.heatmap_utils import (heatmap_a_coordinate, regression_voting, ruota_co
 from src.incertezza import TEMPERATURA_DECODIFICA, covarianza_tta, cov_in_mm, sigma_radiale
 
 # Which points Stage 2 is applied to (see seleziona_punti)
-MODI_SELEZIONE = ("tutti", "maschera", "incertezza")
+MODI_SELEZIONE = ("tutti", "maschera", "incertezza", "fusione")
+
+# Default parameters of the Stage 1 / Stage 2 fusion (see peso_fusione), chosen
+# with strategie_stage2.py on the "probabilistic" Stage 1 + image-based Stage 2
+# (2-fold CV over the validation images, objective = accuracy within 2-4 mm)
+FUSIONE_DEFAULT = {"c": 0.32, "p": 2.0, "floor_mm": 0.0}
+
+
+def peso_fusione(sigma1_mm, sigma2_mm, c=0.32, p=2.0, floor_mm=0.0):
+    """
+    Weight of Stage 2 in the fused position  S1 + w * (S2 - S1):
+        w = s1^p / (s1^p + (c * s2)^p),   s1 = sqrt(sigma1^2 + floor^2)
+    s1 = Stage 1 uncertainty (sigma_tta), s2 = Stage 2 uncertainty (spread of
+    its crop heatmap), both in mm. With p = 2 it is the classic
+    inverse-variance average of two measurements; c puts the two
+    uncertainties on the same scale. w -> 1 where Stage 1 is unsure and
+    Stage 2 sure, w -> 0 in the opposite case.
+    """
+    s1 = torch.sqrt(sigma1_mm ** 2 + floor_mm ** 2) + 1e-6
+    s2 = sigma2_mm + 1e-6
+    return s1 ** p / (s1 ** p + (c * s2) ** p)
 
 # HRNet channel layouts tried in turn until the checkpoint loads with strict=True
 CANALI_CANDIDATI = [[64, 128, 256, 512, 1024], [192, 384, 768, 1536], None,
@@ -253,11 +273,12 @@ def seleziona_punti(modo, B, N, device, cov_tta=None, dims=None, pixel_size=None
     """
     Which points Stage 2 is applied to, as a bool tensor [B, N]:
       "tutti"       every landmark
+      "fusione"     every landmark (the weighting is done in applica_stage2)
       "maschera"    the landmarks in REFINE_LANDMARK_MASK (src/landmark_stats.py)
       "incertezza"  the points whose TTA spread (sigma_tta, mm) exceeds soglia_mm
                     — needs cov_tta (i.e. TTA on), dims and pixel_size
     """
-    if modo == "tutti":
+    if modo in ("tutti", "fusione"):
         return torch.ones(B, N, dtype=torch.bool, device=device)
     if modo == "maschera":
         sel = torch.zeros(B, N, dtype=torch.bool, device=device)
@@ -272,7 +293,8 @@ def seleziona_punti(modo, B, N, device, cov_tta=None, dims=None, pixel_size=None
 
 
 def applica_stage2(stage2, coords_norm, x_out=None, originali=None, dims=None, pixel_size=None,
-                   landmark_da_correggere=None, seleziona=None, fattore_guardia=1.2):
+                   landmark_da_correggere=None, seleziona=None, fattore_guardia=1.2,
+                   fusione=None, sigma1_mm=None):
     """
     Applies Stage 2 to a batch of normalized coordinates [B, N, 2].
 
@@ -285,6 +307,10 @@ def applica_stage2(stage2, coords_norm, x_out=None, originali=None, dims=None, p
       is kept if |dx| and |dy| <= fattore_guardia * max_offset_mm.
     - old feature-based Stage 2: crops of the Stage 1 feature map x_out; a
       correction is kept if |dx| and |dy| <= fattore_guardia * max_offset.
+
+    fusione (image-based Stage 2 only): dict with c, p, floor_mm (see
+    peso_fusione) and sigma1_mm [B, N] = Stage 1 uncertainty (sigma_tta). The
+    result is then the weighted average S1 + w * (S2 - S1) instead of S2.
     """
     B, N, _ = coords_norm.shape
     dev = coords_norm.device
@@ -304,8 +330,14 @@ def applica_stage2(stage2, coords_norm, x_out=None, originali=None, dims=None, p
     with torch.no_grad():
         if immagine:
             crops = ritaglia_originali(originali, c, b_idx, pixel_size, stage2.finestra_mm, stage2.crop_px)
-            offset_mm, _ = stage2(crops, l_idx)
+            offset_mm, logits = stage2(crops, l_idx)
             ok = (offset_mm.abs() <= fattore_guardia * stage2.max_offset_mm).all(dim=1)
+            if fusione is not None:
+                if sigma1_mm is None:
+                    raise ValueError("the fusion needs sigma1_mm (Stage 1 sigma_tta, i.e. TTA on)")
+                w = peso_fusione(sigma1_mm.to(dev)[b_idx, l_idx], varianza_crop(logits, stage2.finestra_mm).sqrt(),
+                                 **fusione)
+                offset_mm = offset_mm * w.unsqueeze(1)
             mm_per_unita = dims.to(dev)[b_idx] * pixel_size.to(dev)[b_idx].view(-1, 1)   # mm per normalized unit
             offset = offset_mm / mm_per_unita
         else:

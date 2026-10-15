@@ -317,6 +317,29 @@ def test_stage2_tta_riporta_le_risposte_nel_ritaglio_originale():
     assert (out["var_tta"] < 0.05).all() and (out["var_hm"] > 0).all()
 
 
+def test_fusione_stage1_stage2():
+    """The fused point lies between Stage 1 and Stage 2, closer to the more
+    reliable one; with an uncertain Stage 1 it is (almost) Stage 2."""
+    from src.inferenza import peso_fusione
+    s = torch.tensor([0.1, 0.5, 2.0])
+    w = peso_fusione(s, torch.full((3,), 1.0), c=0.32, p=2.0)
+    assert ((w > 0) & (w < 1)).all() and (w[1:] > w[:-1]).all() and w[2] > 0.95
+    torch.manual_seed(0)
+    net = ImageRefinementNet(num_landmarks=3, finestra_mm=12.8, crop_px=64, max_offset_mm=3.0).eval()
+    H, W = 300, 400
+    orig = [torch.rand(1, H, W)]
+    coords = torch.rand(1, 3, 2) * 0.6 + 0.2
+    dims, ps = torch.tensor([[W, H]], dtype=torch.float32), torch.tensor([0.1])
+    pieno = applica_stage2(net, coords, originali=orig, dims=dims, pixel_size=ps)
+    fuso = applica_stage2(net, coords, originali=orig, dims=dims, pixel_size=ps,
+                          fusione={"c": 0.32, "p": 2.0, "floor_mm": 0.0}, sigma1_mm=torch.tensor([[0.01, 0.3, 50.0]]))
+    spost_pieno, spost_fuso = (pieno - coords).norm(dim=2), (fuso - coords).norm(dim=2)
+    assert (spost_fuso <= spost_pieno + 1e-7).all()
+    # direction preserved, and with a hugely uncertain Stage 1 the fused point is Stage 2
+    assert torch.allclose(fuso[0, 2], pieno[0, 2], atol=1e-5)
+    assert spost_fuso[0, 0] < 0.05 * spost_pieno[0, 0] + 1e-7
+
+
 def test_crea_split_stabile_con_o_senza_tracciati():
     from torch.utils.data import random_split
     from src.datasets import crea_split

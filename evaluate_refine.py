@@ -12,6 +12,12 @@ from src.inferenza import (carica_stage1 as _carica_stage1, carica_stage2, colla
 from src.incertezza import (momenti_heatmap, cov_in_mm, sigma_radiale, analisi_incertezza,
                             stampa_analisi_incertezza, FONTI_INCERTEZZA)
 
+try:
+    from src.parametri_stage2 import SELEZIONE_STAGE2, FUSIONE_STAGE2, SOGLIA_SIGMA_TTA_MM
+except ImportError:   # fallback if the file is missing
+    from src.inferenza import FUSIONE_DEFAULT as FUSIONE_STAGE2
+    SELEZIONE_STAGE2, SOGLIA_SIGMA_TTA_MM = "fusione", 0.25
+
 CONFIG = {
     "aariz_path":        "data/Aariz",
     "isbi_path":         "data/Cepha400",
@@ -29,14 +35,21 @@ CONFIG = {
     "hrnet_channels":    [192, 384, 768, 1536],
     "usa_tta":           True,
     "tta_angoli":        [-5.0, -2.5, 0.0, 2.5, 5.0],
-    # Which points Stage 2 corrects: "tutti" | "maschera" (REFINE_LANDMARK_MASK) |
-    # "incertezza" (sigma_tta > soglia_sigma_tta_mm; needs usa_tta). The threshold
+    # How Stage 2 is used:
+    #   "fusione"    (default) every point = weighted average of Stage 1 and Stage 2,
+    #                weights from their uncertainties (fusione_stage2, needs usa_tta).
+    #                Best in strategie_stage2.py: accuracy <2mm 86.6% -> 88.4%.
+    #   "incertezza" Stage 2 only where sigma_tta > soglia_sigma_tta_mm (needs usa_tta)
+    #   "tutti" | "maschera" (REFINE_LANDMARK_MASK)
+    # For "incertezza" the threshold
     # depends on the Stage 1 model: analisi_stage2.py prints the sigma_tta
     # quantiles and the best threshold. For "probabilistic" + image-based Stage 2,
     # 0.25 mm (~ the most uncertain 50% of the points) was chosen on the even
     # validation images and confirmed on the odd ones (MRE 1.099 -> 1.060 mm).
-    "selezione_stage2":    "incertezza",
-    "soglia_sigma_tta_mm": 0.25,
+    # Values from src/parametri_stage2.py (measured on the first run, kept fixed)
+    "selezione_stage2":    SELEZIONE_STAGE2,
+    "fusione_stage2":      FUSIONE_STAGE2,
+    "soglia_sigma_tta_mm": SOGLIA_SIGMA_TTA_MM,
     # Uncertainty analysis + calibration file used by predict_heatmap.py
     "analizza_incertezza": True,
     "copertura":           0.9,
@@ -102,8 +115,11 @@ def calcola_mre_sdr(stage1, stage2, loader, device, config, raccogli_incertezza=
                                       cov_tta=out["cov_tta"] if config.get("usa_tta", True) else None,
                                       dims=dims, pixel_size=pixel_sizes,
                                       soglia_mm=config.get("soglia_sigma_tta_mm"))
+                fusione = config.get("fusione_stage2") if config.get("selezione_stage2") == "fusione" else None
+                sigma1 = sigma_radiale(cov_in_mm(out["cov_tta"], dims, pixel_sizes))[:, :N] if fusione else None
                 pred_coords = _applica_stage2(stage2, pred_coords, x_out=out["x_out"], originali=originali,
-                                              dims=dims, pixel_size=pixel_sizes, seleziona=sel)
+                                              dims=dims, pixel_size=pixel_sizes, seleziona=sel,
+                                              fusione=fusione, sigma1_mm=sigma1)
             err = errori_mm(pred_coords, punti, dims, pixel_sizes)
 
             if raccogli_incertezza:
@@ -210,8 +226,10 @@ def main():
     if stage2 is None:
         print("Stage 2 not found — evaluating Stage 1 only")
     else:
-        print(f"Stage 2 applied to: {CONFIG['selezione_stage2']}"
-              + (f" (sigma_tta > {CONFIG['soglia_sigma_tta_mm']} mm)" if CONFIG["selezione_stage2"] == "incertezza" else ""))
+        modo = CONFIG["selezione_stage2"]
+        dettaglio = {"incertezza": f" (sigma_tta > {CONFIG['soglia_sigma_tta_mm']} mm)",
+                     "fusione": f" (weighted average of Stage 1 and Stage 2, {CONFIG.get('fusione_stage2')})"}
+        print(f"Stage 2 mode: {modo}{dettaglio.get(modo, '')}")
 
     dataset = Datasets(aariz_path=CONFIG["aariz_path"], isbi_path=CONFIG["isbi_path"])
     _, val_ds = crea_split(dataset, CONFIG["val_split"], seed=42)

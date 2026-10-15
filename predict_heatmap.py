@@ -4,6 +4,12 @@ from src.heatmap_utils import HEATMAP_TRAIN_SIZE
 from src.inferenza import carica_stage1, carica_stage2, predici_con_tta, applica_stage2, seleziona_punti
 from src.incertezza import momenti_heatmap, cov_in_mm, sigma_radiale
 
+try:
+    from src.parametri_stage2 import SELEZIONE_STAGE2, FUSIONE_STAGE2, SOGLIA_SIGMA_TTA_MM
+except ImportError:   # fallback if the file is missing
+    from src.inferenza import FUSIONE_DEFAULT as FUSIONE_STAGE2
+    SELEZIONE_STAGE2, SOGLIA_SIGMA_TTA_MM = "fusione", 0.25
+
 USE_VOTING = False   # False = soft-argmax (stable), True = regression voting
 
 CONFIG = {
@@ -13,9 +19,11 @@ CONFIG = {
     "stage1_path":    "modello_heatmap.pth",
     "stage2_path":    "modello_refine.pth",
     "usa_stage2":     True,
-    # Which points Stage 2 corrects (see evaluate_refine.py): "tutti" | "maschera" | "incertezza"
-    "selezione_stage2":    "incertezza",
-    "soglia_sigma_tta_mm": 0.25,
+    # How Stage 2 is used (see evaluate_refine.py): "fusione" | "incertezza" | "tutti" | "maschera"
+    # Values from src/parametri_stage2.py (measured on the first run, kept fixed)
+    "selezione_stage2":    SELEZIONE_STAGE2,
+    "fusione_stage2":      FUSIONE_STAGE2,
+    "soglia_sigma_tta_mm": SOGLIA_SIGMA_TTA_MM,
     "usa_tta":        True,
     "tta_angoli":     [-5.0, -2.5, 0.0, 2.5, 5.0],
     "hrnet_channels": [192, 384, 768, 1536],
@@ -93,8 +101,10 @@ def predici(stage1, stage2, img_path, device, config):
                               cov_tta=out["cov_tta"] if config["usa_tta"] else None,
                               dims=dims, pixel_size=ps, soglia_mm=config["soglia_sigma_tta_mm"])
         originale = torch.from_numpy(img_orig).float().unsqueeze(0) / 255.0
+        fusione = config["fusione_stage2"] if config["selezione_stage2"] == "fusione" else None
+        sigma1 = sigma_radiale(cov_in_mm(out["cov_tta"], dims, ps)) if fusione else None
         coords_norm = applica_stage2(stage2, coords_norm, x_out=out["x_out"], originali=[originale],
-                                     dims=dims, pixel_size=ps, seleziona=sel)
+                                     dims=dims, pixel_size=ps, seleziona=sel, fusione=fusione, sigma1_mm=sigma1)
     _, cov_hm, picco = momenti_heatmap(out["pred_raw"][:, 0::3], stage1.heatmap_mode, stage1.griglia)
     incertezza = {
         "heatmap": sigma_radiale(cov_in_mm(cov_hm, dims, ps))[0].cpu().numpy(),

@@ -477,12 +477,34 @@ Così lo Stage 2 non può "copiare" lo Stage 1: deve riconoscere l'anatomia.
 
 | Valore | Punti corretti |
 |---|---|
-| `"incertezza"` (default) | quelli con `sigma_tta` > `soglia_sigma_tta_mm` (default 0.25 mm, circa il 50% più incerto per il modello `probabilistic`: soglia scelta sulle immagini pari e verificata sulle dispari, MRE 1.099 → 1.060 mm; richiede la TTA) |
+| `"fusione"` (default) | tutti, ma il punto finale è una **media pesata** di Stage 1 e Stage 2: `S1 + w·(S2 − S1)` con `w = σ_tta² / (σ_tta² + (c·σ_S2)²)`, dove σ_S2 è la larghezza della heatmap dello Stage 2 nel ritaglio (`fusione_stage2`: c = 0.32, p = 2). Richiede la TTA. Risultato in `strategie_stage2.py` (validazione incrociata pari/dispari): accuratezza < 2 mm 86.6% → 88.4%, MRE 1.085 → 1.029 mm |
+| `"incertezza"` | quelli con `sigma_tta` > `soglia_sigma_tta_mm` (default 0.25 mm, circa il 50% più incerto per il modello `probabilistic`: soglia scelta sulle immagini pari e verificata sulle dispari, MRE 1.099 → 1.060 mm; richiede la TTA) |
 | `"tutti"` | tutti i landmark |
 | `"maschera"` | quelli in `REFINE_LANDMARK_MASK` (`src/landmark_stats.py`) |
 
-La soglia dipende dal modello dello Stage 1: `analisi_stage2.py` mostra l'effetto per
-quintile di `sigma_tta` e la soglia migliore.
+I parametri (modalità, `c`, `p`, `floor`, soglia) stanno in **`src/parametri_stage2.py`**,
+letto da `evaluate_refine.py` e `predict_heatmap.py`. Come per `src/landmark_stats.py`,
+il primo run serve da misura empirica e i run successivi usano quei valori **fissi**:
+il file non viene rigenerato automaticamente. I valori attuali vengono dal primo run
+`probabilistic` (c = 0.32, p = 2, floor = 0, soglia 0.25 mm).
+
+Secondo run, con lo Stage 1 che parte dalle statistiche per landmark del primo
+(`STATS_DA/<modalità>/landmark_stats.py`) e risultati in una cartella separata:
+
+```bash
+sbatch --export=ALL,MODES=probabilistic,STATS_DA=esperimenti,OUT=esperimenti_run2 run_tutto.slurm
+```
+
+Per rimisurare i parametri su un run (solo quando si vuole sostituire la misura):
+
+1. `analisi_stage2.py --dir <esperimento>` (GPU) salva per ogni punto errori,
+   spostamenti proposti dallo Stage 2 (anche con la sua TTA) e incertezze;
+2. `strategie_stage2.py <csv>` (solo numpy) confronta solo Stage 1, Stage 2 ovunque,
+   soglia, fusione e classificatore, scegliendo i parametri per massimizzare
+   l'accuratezza entro 2/2.5/3/4 mm su metà delle immagini e misurandola sull'altra
+   metà (e viceversa).
+3. `strategie_stage2.py <csv> --salva src/parametri_stage2.py` riscrive il file con i
+   parametri stimati su tutte le immagini.
 
 ---
 
