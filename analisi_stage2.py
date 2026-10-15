@@ -19,6 +19,7 @@ Writes one row per (image, landmark) to <dir>/analisi_stage2.csv.
 
     python analisi_stage2.py --dir esperimenti/probabilistic
     python analisi_stage2.py --dir esperimenti/fixed --batch-size 4
+    python analisi_stage2.py --da-csv esperimenti/probabilistic/analisi_stage2.csv   # report only
 """
 import argparse
 import csv
@@ -106,22 +107,55 @@ def raccogli(stage1, stage2, loader, device, config):
     return {k: np.asarray(v) for k, v in r.items()}
 
 
+SDR_MM = [2.0, 2.5, 3.0, 4.0]   # accuracy thresholds: % of points within X mm
+
+
+def errori_con_selezione(r, sel):
+    """Per-point errors when Stage 2 is applied only where sel is True."""
+    return np.where(sel, r["err2"], r["err1"])
+
+
 def mre_con_selezione(r, sel):
     """MRE when Stage 2 is applied only where sel is True."""
-    return float(np.where(sel, r["err2"], r["err1"]).mean())
+    return float(errori_con_selezione(r, sel).mean())
+
+
+def intestazione_sdr():
+    return " ".join(f"{'<' + format(t, 'g') + 'mm':>7}" for t in SDR_MM)
+
+
+def colonne_sdr(err):
+    """Accuracy (SDR): share of points with error below each threshold of SDR_MM."""
+    return " ".join(f"{(err < t).mean():7.1%}" for t in SDR_MM)
+
+
+def carica_csv(path):
+    """Rebuilds the per-point records from a CSV written by this script."""
+    with open(path) as f:
+        righe = list(csv.DictReader(f))
+    r = {
+        "img": np.array([int(x["img"]) for x in righe]),
+        "lm": np.array([NOMI.index(x["landmark"]) for x in righe]),
+        "guardia_ok": np.array([x["guardia_ok"] == "True" for x in righe]),
+    }
+    for k in ("err1", "err2", "sigma_tta", "sigma_heatmap", "corr_mm"):
+        r[k] = np.array([float(x[k]) for x in righe])
+    return r
 
 
 def report(r, max_corr_mm, maschera_fissa):
     e1, e2, lm = r["err1"], r["err2"], r["lm"]
     maschera = np.isin(lm, sorted(maschera_fissa))
 
-    print(f"\n{'='*64}\nA. MRE (mm) — {len(e1)} points, {len(np.unique(r['img']))} images\n{'='*64}")
-    print(f"  Stage 1 only                         : {e1.mean():.3f}")
-    print(f"  Stage 2 on the current fixed mask    : {mre_con_selezione(r, maschera):.3f}"
-          f"   mask = {[NOMI[i] for i in sorted(maschera_fissa)]}")
-    print(f"  Stage 2 on all landmarks             : {e2.mean():.3f}")
-    print(f"  Ideal (Stage 2 only where it helps)  : {np.minimum(e1, e2).mean():.3f}"
-          f"   <- upper bound for ANY selection rule")
+    print(f"\n{'='*64}\nA. MRE (mm) and accuracy — {len(e1)} points, {len(np.unique(r['img']))} images\n{'='*64}")
+    print(f"  {'':36s} {'MRE':>6}  {intestazione_sdr()}")
+    for nome, err in (("Stage 1 only", e1),
+                      ("Stage 2 on the current fixed mask", errori_con_selezione(r, maschera)),
+                      ("Stage 2 on all landmarks", e2),
+                      ("Ideal (Stage 2 only where it helps)", np.minimum(e1, e2))):
+        print(f"  {nome:36s} {err.mean():6.3f}  {colonne_sdr(err)}")
+    print(f"  fixed mask = {[NOMI[i] for i in sorted(maschera_fissa)]} | "
+          f"'Ideal' = upper bound for ANY selection rule")
     migliora = e2 < e1 - 1e-6
     peggiora = e2 > e1 + 1e-6
     print(f"  Stage 2 improves {migliora.mean():.1%} of the points, worsens {peggiora.mean():.1%}, "
@@ -140,10 +174,12 @@ def report(r, max_corr_mm, maschera_fissa):
                   f"{(e1[sel] > max_corr_mm).mean():11.1%}")
 
         print(f"\nC. Apply Stage 2 only where {fonte} > threshold")
-        print(f"  {'threshold':>9} {'% corrected':>11} {'MRE all images':>14}")
+        print(f"  {'threshold':>9} {'% corrected':>11} {'MRE':>6}  {intestazione_sdr()}")
+        print(f"  {'(none)':>9} {0:11.1%} {e1.mean():6.3f}  {colonne_sdr(e1)}")
         soglie = np.quantile(s, [0, .5, .6, .7, .8, .9, .95, .99])
         for t in soglie:
-            print(f"  {t:9.2f} {(s > t).mean():11.1%} {mre_con_selezione(r, s > t):14.3f}")
+            err = errori_con_selezione(r, s > t)
+            print(f"  {t:9.2f} {(s > t).mean():11.1%} {err.mean():6.3f}  {colonne_sdr(err)}")
         # honest estimate: threshold chosen on even images, measured on odd ones
         pari = (r["img"] % 2) == 0
         candidati = np.quantile(s[pari], np.linspace(0, 0.99, 100))
@@ -153,6 +189,10 @@ def report(r, max_corr_mm, maschera_fissa):
         print(f"  threshold chosen on even images: {migliore:.2f} mm -> on odd images "
               f"MRE {rd['err1'].mean():.3f} (Stage 1) vs {mre_con_selezione(rd, rd[fonte] > migliore):.3f} "
               f"(selective Stage 2), {(rd[fonte] > migliore).mean():.1%} corrected")
+        print(f"  {'odd images':>21} {'MRE':>6}  {intestazione_sdr()}")
+        print(f"  {'Stage 1 only':>21} {rd['err1'].mean():6.3f}  {colonne_sdr(rd['err1'])}")
+        err_d = errori_con_selezione(rd, rd[fonte] > migliore)
+        print(f"  {'selective Stage 2':>21} {err_d.mean():6.3f}  {colonne_sdr(err_d)}")
 
     print(f"\n{'='*64}\nD. Per landmark (Stage 2 applied to every point)\n{'='*64}")
     print(f"  {'':5s} {'err S1':>7} {'err S2':>7} {'delta':>7} {'improves':>8} {'in mask':>7}")
@@ -178,11 +218,22 @@ def report(r, max_corr_mm, maschera_fissa):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dir", required=True, help="experiment folder with modello_heatmap.pth and modello_refine.pth")
+    ap.add_argument("--dir", help="experiment folder with modello_heatmap.pth and modello_refine.pth")
+    ap.add_argument("--da-csv", help="only redo the report from a CSV written by this script (no models, no GPU)")
+    ap.add_argument("--max-offset-mm", type=float, default=5.0,
+                    help="with --da-csv: Stage 2 max correction per axis, for section E")
     ap.add_argument("--stage2", help="Stage 2 checkpoint (default: <dir>/modello_refine.pth)")
     ap.add_argument("--batch-size", type=int)
     ap.add_argument("--no-tta", action="store_true")
     a = ap.parse_args()
+    if a.da_csv:
+        r = carica_csv(a.da_csv)
+        stats = os.path.join(a.dir or os.path.dirname(a.da_csv), "landmark_stats.py")
+        maschera_fissa = set(runpy.run_path(stats)["REFINE_LANDMARK_MASK"]) if os.path.exists(stats) else set()
+        report(r, a.max_offset_mm * np.sqrt(2), maschera_fissa)
+        return
+    if not a.dir:
+        ap.error("--dir is required (unless --da-csv is given)")
     if a.batch_size:
         CONFIG["batch_size"] = a.batch_size
     if a.no_tta:
