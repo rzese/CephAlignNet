@@ -1,0 +1,294 @@
+[esegui_esperimento] step=heatmap dir=esperimenti_run2/probabilistic
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "tracciati_path": null,
+ "tracciati_tabella_scale": null,
+ "num_landmarks": 26,
+ "img_size": 512,
+ "heatmap_size": 256,
+ "sigma": 4.0,
+ "batch_size": 16,
+ "num_epochs": 600,
+ "learning_rate": 3e-05,
+ "val_split": 0.2,
+ "save_path": "esperimenti_run2/probabilistic/modello_heatmap.pth",
+ "patience": 60,
+ "geo_loss_weight": 0.05,
+ "heatmap_mode": "probabilistic",
+ "griglia": "centri",
+ "sigma_penalita": 0.1,
+ "lr_sigma": 0.001,
+ "sigma_min": 1.0,
+ "sigma_max": 12.0
+}
+Device: cuda | Model: HRNetLandmark (W48) | heatmap_mode: probabilistic
+batch_size=16 | LR=3.0e-05 | img_size=512 | heatmap_size=256
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+Unexpected keys (downsamp_modules.0.1.num_batches_tracked, downsamp_modules.1.1.num_batches_tracked, downsamp_modules.2.1.num_batches_tracked, final_layer.1.num_batches_tracked, downsamp_modules.0.0.bias, downsamp_modules.0.0.weight, downsamp_modules.0.1.bias, downsamp_modules.0.1.running_mean, downsamp_modules.0.1.running_var, downsamp_modules.0.1.weight, downsamp_modules.1.0.bias, downsamp_modules.1.0.weight, downsamp_modules.1.1.bias, downsamp_modules.1.1.running_mean, downsamp_modules.1.1.running_var, downsamp_modules.1.1.weight, downsamp_modules.2.0.bias, downsamp_modules.2.0.weight, downsamp_modules.2.1.bias, downsamp_modules.2.1.running_mean, downsamp_modules.2.1.running_var, downsamp_modules.2.1.weight, final_layer.0.bias, final_layer.0.weight, final_layer.1.bias, final_layer.1.running_mean, final_layer.1.running_var, final_layer.1.weight, classifier.bias, classifier.weight) found while loading pretrained weights. This may be expected if model is being adapted.
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Epoch   1/600 | Train: 1.054898 | Val: 0.934010 | LR: 3.00e-05
+  → saved (val_loss: 0.934010)
+Epoch   2/600 | Train: 0.885456 | Val: 0.757093 | LR: 3.00e-05
+  → saved (val_loss: 0.757093)
+Epoch   3/600 | Train: 0.786314 | Val: 0.669388 | LR: 3.00e-05
+  → saved (val_loss: 0.669388)
+Epoch   4/600 | Train: 0.725486 | Val: 0.603477 | LR: 3.00e-05
+  → saved (val_loss: 0.603477)
+Epoch   5/600 | Train: 0.653868 | Val: 0.504665 | LR: 3.00e-05
+  → saved (val_loss: 0.504665)
+Epoch   6/600 | Train: 0.592721 | Val: 0.426316 | LR: 3.00e-05
+  → saved (val_loss: 0.426316)
+Epoch   7/600 | Train: 0.536360 | Val: 0.387792 | LR: 3.00e-05
+  → saved (val_loss: 0.387792)
+Epoch   8/600 | Train: 0.495406 | Val: 0.323644 | LR: 3.00e-05
+  → saved (val_loss: 0.323644)
+Epoch   9/600 | Train: 0.476163 | Val: 0.300758 | LR: 3.00e-05
+  → saved (val_loss: 0.300758)
+Epoch  10/600 | Train: 0.442754 | Val: 0.333624 | LR: 3.00e-05
+Epoch  11/600 | Train: 0.442952 | Val: 0.361967 | LR: 3.00e-05
+Epoch  12/600 | Train: 0.410891 | Val: 0.303632 | LR: 3.00e-05
+Epoch  13/600 | Train: 0.396257 | Val: 0.264626 | LR: 3.00e-05
+  → saved (val_loss: 0.264626)
+Epoch  14/600 | Train: 0.375245 | Val: 0.283598 | LR: 3.00e-05
+Epoch  15/600 | Train: 0.380027 | Val: 0.277130 | LR: 3.00e-05
+Epoch  16/600 | Train: 0.360665 | Val: 0.228676 | LR: 3.00e-05
+  → saved (val_loss: 0.228676)
+Epoch  17/600 | Train: 0.364191 | Val: 0.266267 | LR: 3.00e-05
+Epoch  18/600 | Train: 0.351522 | Val: 0.217420 | LR: 3.00e-05
+  → saved (val_loss: 0.217420)
+Epoch  19/600 | Train: 0.345423 | Val: 0.212104 | LR: 3.00e-05
+  → saved (val_loss: 0.212104)
+Epoch  20/600 | Train: 0.335497 | Val: 0.224261 | LR: 3.00e-05
+Epoch  21/600 | Train: 0.333914 | Val: 0.227648 | LR: 3.00e-05
+Epoch  22/600 | Train: 0.322572 | Val: 0.207971 | LR: 3.00e-05
+  → saved (val_loss: 0.207971)
+Epoch  23/600 | Train: 0.326649 | Val: 0.212172 | LR: 3.00e-05
+Epoch  24/600 | Train: 0.321521 | Val: 0.240282 | LR: 3.00e-05
+Epoch  25/600 | Train: 0.315191 | Val: 0.206771 | LR: 3.00e-05
+  → saved (val_loss: 0.206771)
+Epoch  26/600 | Train: 0.303200 | Val: 0.220918 | LR: 3.00e-05
+Epoch  27/600 | Train: 0.314888 | Val: 0.221706 | LR: 3.00e-05
+Epoch  28/600 | Train: 0.307654 | Val: 0.221107 | LR: 3.00e-05
+Epoch  29/600 | Train: 0.307322 | Val: 0.193874 | LR: 3.00e-05
+  → saved (val_loss: 0.193874)
+Epoch  30/600 | Train: 0.303967 | Val: 0.193006 | LR: 3.00e-05
+  → saved (val_loss: 0.193006)
+Epoch  31/600 | Train: 0.301000 | Val: 0.200586 | LR: 3.00e-05
+Epoch  32/600 | Train: 0.291323 | Val: 0.221856 | LR: 3.00e-05
+Epoch  33/600 | Train: 0.291576 | Val: 0.194664 | LR: 3.00e-05
+Epoch  34/600 | Train: 0.300268 | Val: 0.186008 | LR: 3.00e-05
+  → saved (val_loss: 0.186008)
+Epoch  35/600 | Train: 0.295584 | Val: 0.210943 | LR: 3.00e-05
+Epoch  36/600 | Train: 0.287449 | Val: 0.212602 | LR: 3.00e-05
+Epoch  37/600 | Train: 0.294310 | Val: 0.193244 | LR: 3.00e-05
+Epoch  38/600 | Train: 0.287401 | Val: 0.264615 | LR: 3.00e-05
+Epoch  39/600 | Train: 0.279592 | Val: 0.202769 | LR: 3.00e-05
+Epoch  40/600 | Train: 0.281808 | Val: 0.184517 | LR: 3.00e-05
+  → saved (val_loss: 0.184517)
+Epoch  41/600 | Train: 0.277380 | Val: 0.201663 | LR: 3.00e-05
+Epoch  42/600 | Train: 0.279830 | Val: 0.182876 | LR: 3.00e-05
+  → saved (val_loss: 0.182876)
+Epoch  43/600 | Train: 0.274995 | Val: 0.186097 | LR: 3.00e-05
+Epoch  44/600 | Train: 0.279605 | Val: 0.215477 | LR: 3.00e-05
+Epoch  45/600 | Train: 0.278608 | Val: 0.181270 | LR: 3.00e-05
+  → saved (val_loss: 0.181270)
+Epoch  46/600 | Train: 0.279420 | Val: 0.189688 | LR: 3.00e-05
+Epoch  47/600 | Train: 0.274506 | Val: 0.205929 | LR: 3.00e-05
+Epoch  48/600 | Train: 0.267047 | Val: 0.177683 | LR: 3.00e-05
+  → saved (val_loss: 0.177683)
+Epoch  49/600 | Train: 0.269178 | Val: 0.186098 | LR: 3.00e-05
+Epoch  50/600 | Train: 0.271042 | Val: 0.199191 | LR: 3.00e-05
+Epoch  51/600 | Train: 0.268143 | Val: 0.234014 | LR: 3.00e-05
+Epoch  52/600 | Train: 0.265828 | Val: 0.198847 | LR: 3.00e-05
+Epoch  53/600 | Train: 0.270387 | Val: 0.205487 | LR: 3.00e-05
+Epoch  54/600 | Train: 0.260549 | Val: 0.181978 | LR: 3.00e-05
+Epoch  55/600 | Train: 0.260397 | Val: 0.193339 | LR: 3.00e-05
+Epoch  56/600 | Train: 0.259704 | Val: 0.193410 | LR: 3.00e-05
+Epoch  57/600 | Train: 0.261836 | Val: 0.208649 | LR: 3.00e-05
+Epoch  58/600 | Train: 0.260768 | Val: 0.193782 | LR: 3.00e-05
+Epoch  59/600 | Train: 0.258746 | Val: 0.223749 | LR: 3.00e-05
+Epoch  60/600 | Train: 0.259227 | Val: 0.232874 | LR: 3.00e-05
+Epoch  61/600 | Train: 0.260734 | Val: 0.213527 | LR: 3.00e-05
+Epoch  62/600 | Train: 0.259253 | Val: 0.186968 | LR: 3.00e-05
+Epoch  63/600 | Train: 0.253725 | Val: 0.171257 | LR: 3.00e-05
+  → saved (val_loss: 0.171257)
+Epoch  64/600 | Train: 0.261648 | Val: 0.200311 | LR: 3.00e-05
+Epoch  65/600 | Train: 0.259103 | Val: 0.210842 | LR: 3.00e-05
+Epoch  66/600 | Train: 0.250730 | Val: 0.167781 | LR: 3.00e-05
+  → saved (val_loss: 0.167781)
+Epoch  67/600 | Train: 0.253210 | Val: 0.175378 | LR: 3.00e-05
+Epoch  68/600 | Train: 0.251407 | Val: 0.199865 | LR: 3.00e-05
+Epoch  69/600 | Train: 0.254844 | Val: 0.169287 | LR: 3.00e-05
+Epoch  70/600 | Train: 0.249092 | Val: 0.179253 | LR: 3.00e-05
+Epoch  71/600 | Train: 0.251674 | Val: 0.171100 | LR: 3.00e-05
+Epoch  72/600 | Train: 0.249367 | Val: 0.215912 | LR: 3.00e-05
+Epoch  73/600 | Train: 0.249977 | Val: 0.198241 | LR: 3.00e-05
+Epoch  74/600 | Train: 0.245888 | Val: 0.186300 | LR: 3.00e-05
+Epoch  75/600 | Train: 0.256678 | Val: 0.203874 | LR: 3.00e-05
+Epoch  76/600 | Train: 0.251835 | Val: 0.179678 | LR: 3.00e-05
+Epoch  77/600 | Train: 0.248344 | Val: 0.208902 | LR: 3.00e-05
+Epoch  78/600 | Train: 0.244014 | Val: 0.172557 | LR: 3.00e-05
+Epoch  79/600 | Train: 0.244646 | Val: 0.190661 | LR: 3.00e-05
+Epoch  80/600 | Train: 0.247697 | Val: 0.180690 | LR: 3.00e-05
+Epoch  81/600 | Train: 0.246153 | Val: 0.168146 | LR: 3.00e-05
+Epoch  82/600 | Train: 0.245604 | Val: 0.168041 | LR: 3.00e-05
+Epoch  83/600 | Train: 0.243498 | Val: 0.174379 | LR: 3.00e-05
+Epoch  84/600 | Train: 0.248165 | Val: 0.177651 | LR: 3.00e-05
+Epoch  85/600 | Train: 0.242201 | Val: 0.169135 | LR: 3.00e-05
+Epoch  86/600 | Train: 0.246063 | Val: 0.207710 | LR: 3.00e-05
+Epoch  87/600 | Train: 0.238244 | Val: 0.183851 | LR: 1.50e-05
+Epoch  88/600 | Train: 0.234116 | Val: 0.177257 | LR: 1.50e-05
+Epoch  89/600 | Train: 0.239292 | Val: 0.168459 | LR: 1.50e-05
+Epoch  90/600 | Train: 0.230585 | Val: 0.200613 | LR: 1.50e-05
+Epoch  91/600 | Train: 0.230105 | Val: 0.186190 | LR: 1.50e-05
+Epoch  92/600 | Train: 0.227708 | Val: 0.192916 | LR: 1.50e-05
+Epoch  93/600 | Train: 0.230443 | Val: 0.170469 | LR: 1.50e-05
+Epoch  94/600 | Train: 0.228120 | Val: 0.173370 | LR: 1.50e-05
+Epoch  95/600 | Train: 0.229332 | Val: 0.171079 | LR: 1.50e-05
+Epoch  96/600 | Train: 0.230291 | Val: 0.177262 | LR: 1.50e-05
+Epoch  97/600 | Train: 0.234135 | Val: 0.163867 | LR: 1.50e-05
+  → saved (val_loss: 0.163867)
+Epoch  98/600 | Train: 0.225814 | Val: 0.169934 | LR: 1.50e-05
+Epoch  99/600 | Train: 0.235430 | Val: 0.165788 | LR: 1.50e-05
+Epoch 100/600 | Train: 0.227757 | Val: 0.182617 | LR: 1.50e-05
+Epoch 101/600 | Train: 0.231806 | Val: 0.171864 | LR: 1.50e-05
+Epoch 102/600 | Train: 0.228399 | Val: 0.172489 | LR: 1.50e-05
+Epoch 103/600 | Train: 0.221919 | Val: 0.179345 | LR: 1.50e-05
+Epoch 104/600 | Train: 0.224993 | Val: 0.182677 | LR: 1.50e-05
+Epoch 105/600 | Train: 0.231416 | Val: 0.184528 | LR: 1.50e-05
+Epoch 106/600 | Train: 0.228699 | Val: 0.167622 | LR: 1.50e-05
+Epoch 107/600 | Train: 0.230049 | Val: 0.166751 | LR: 1.50e-05
+Epoch 108/600 | Train: 0.225023 | Val: 0.172680 | LR: 1.50e-05
+Epoch 109/600 | Train: 0.227822 | Val: 0.164491 | LR: 1.50e-05
+Epoch 110/600 | Train: 0.224270 | Val: 0.172248 | LR: 1.50e-05
+Epoch 111/600 | Train: 0.228423 | Val: 0.167102 | LR: 1.50e-05
+Epoch 112/600 | Train: 0.223013 | Val: 0.171900 | LR: 1.50e-05
+Epoch 113/600 | Train: 0.225707 | Val: 0.165683 | LR: 1.50e-05
+Epoch 114/600 | Train: 0.224154 | Val: 0.178948 | LR: 1.50e-05
+Epoch 115/600 | Train: 0.224216 | Val: 0.169654 | LR: 1.50e-05
+Epoch 116/600 | Train: 0.225060 | Val: 0.170647 | LR: 1.50e-05
+Epoch 117/600 | Train: 0.227779 | Val: 0.168314 | LR: 1.50e-05
+Epoch 118/600 | Train: 0.221563 | Val: 0.165753 | LR: 7.50e-06
+Epoch 119/600 | Train: 0.219999 | Val: 0.164924 | LR: 7.50e-06
+Epoch 120/600 | Train: 0.220024 | Val: 0.164249 | LR: 7.50e-06
+Epoch 121/600 | Train: 0.217305 | Val: 0.160676 | LR: 7.50e-06
+  → saved (val_loss: 0.160676)
+Epoch 122/600 | Train: 0.220736 | Val: 0.166176 | LR: 7.50e-06
+Epoch 123/600 | Train: 0.217746 | Val: 0.163442 | LR: 7.50e-06
+Epoch 124/600 | Train: 0.219867 | Val: 0.162654 | LR: 7.50e-06
+Epoch 125/600 | Train: 0.211622 | Val: 0.161518 | LR: 7.50e-06
+Epoch 126/600 | Train: 0.216856 | Val: 0.163145 | LR: 7.50e-06
+Epoch 127/600 | Train: 0.216535 | Val: 0.159722 | LR: 7.50e-06
+  → saved (val_loss: 0.159722)
+Epoch 128/600 | Train: 0.219111 | Val: 0.165125 | LR: 7.50e-06
+Epoch 129/600 | Train: 0.215272 | Val: 0.161169 | LR: 7.50e-06
+Epoch 130/600 | Train: 0.216628 | Val: 0.170864 | LR: 7.50e-06
+Epoch 131/600 | Train: 0.214658 | Val: 0.162726 | LR: 7.50e-06
+Epoch 132/600 | Train: 0.215404 | Val: 0.170666 | LR: 7.50e-06
+Epoch 133/600 | Train: 0.209509 | Val: 0.160625 | LR: 7.50e-06
+Epoch 134/600 | Train: 0.210765 | Val: 0.163935 | LR: 7.50e-06
+Epoch 135/600 | Train: 0.216554 | Val: 0.164611 | LR: 7.50e-06
+Epoch 136/600 | Train: 0.211783 | Val: 0.166821 | LR: 7.50e-06
+Epoch 137/600 | Train: 0.215097 | Val: 0.163719 | LR: 7.50e-06
+Epoch 138/600 | Train: 0.217043 | Val: 0.160284 | LR: 7.50e-06
+Epoch 139/600 | Train: 0.217447 | Val: 0.160567 | LR: 7.50e-06
+Epoch 140/600 | Train: 0.210055 | Val: 0.160404 | LR: 7.50e-06
+Epoch 141/600 | Train: 0.211723 | Val: 0.162638 | LR: 7.50e-06
+Epoch 142/600 | Train: 0.211137 | Val: 0.159791 | LR: 7.50e-06
+Epoch 143/600 | Train: 0.210326 | Val: 0.159654 | LR: 7.50e-06
+  → saved (val_loss: 0.159654)
+Epoch 144/600 | Train: 0.213407 | Val: 0.160351 | LR: 7.50e-06
+Epoch 145/600 | Train: 0.211208 | Val: 0.163839 | LR: 7.50e-06
+Epoch 146/600 | Train: 0.220135 | Val: 0.159972 | LR: 7.50e-06
+Epoch 147/600 | Train: 0.211238 | Val: 0.162858 | LR: 7.50e-06
+Epoch 148/600 | Train: 0.213277 | Val: 0.162804 | LR: 7.50e-06
+Epoch 149/600 | Train: 0.216014 | Val: 0.159729 | LR: 7.50e-06
+Epoch 150/600 | Train: 0.215017 | Val: 0.160753 | LR: 7.50e-06
+Epoch 151/600 | Train: 0.215379 | Val: 0.160346 | LR: 7.50e-06
+Epoch 152/600 | Train: 0.210131 | Val: 0.161504 | LR: 7.50e-06
+Epoch 153/600 | Train: 0.213130 | Val: 0.161315 | LR: 7.50e-06
+Epoch 154/600 | Train: 0.209478 | Val: 0.160548 | LR: 7.50e-06
+Epoch 155/600 | Train: 0.211836 | Val: 0.159533 | LR: 7.50e-06
+  → saved (val_loss: 0.159533)
+Epoch 156/600 | Train: 0.210616 | Val: 0.159629 | LR: 7.50e-06
+Epoch 157/600 | Train: 0.215338 | Val: 0.160738 | LR: 7.50e-06
+Epoch 158/600 | Train: 0.209953 | Val: 0.161234 | LR: 7.50e-06
+Epoch 159/600 | Train: 0.214754 | Val: 0.161691 | LR: 7.50e-06
+Epoch 160/600 | Train: 0.216904 | Val: 0.160493 | LR: 7.50e-06
+Epoch 161/600 | Train: 0.205945 | Val: 0.159383 | LR: 7.50e-06
+  → saved (val_loss: 0.159383)
+Epoch 162/600 | Train: 0.207614 | Val: 0.161081 | LR: 7.50e-06
+Epoch 163/600 | Train: 0.208594 | Val: 0.160618 | LR: 7.50e-06
+Epoch 164/600 | Train: 0.212131 | Val: 0.163069 | LR: 7.50e-06
+Epoch 165/600 | Train: 0.211410 | Val: 0.162388 | LR: 7.50e-06
+Epoch 166/600 | Train: 0.212007 | Val: 0.160417 | LR: 7.50e-06
+Epoch 167/600 | Train: 0.209212 | Val: 0.164441 | LR: 7.50e-06
+Epoch 168/600 | Train: 0.211916 | Val: 0.165623 | LR: 7.50e-06
+Epoch 169/600 | Train: 0.213615 | Val: 0.165861 | LR: 7.50e-06
+Epoch 170/600 | Train: 0.208158 | Val: 0.162615 | LR: 7.50e-06
+Epoch 171/600 | Train: 0.210092 | Val: 0.165285 | LR: 7.50e-06
+Epoch 172/600 | Train: 0.210234 | Val: 0.161196 | LR: 7.50e-06
+Epoch 173/600 | Train: 0.208761 | Val: 0.160681 | LR: 7.50e-06
+Epoch 174/600 | Train: 0.208633 | Val: 0.161595 | LR: 7.50e-06
+Epoch 175/600 | Train: 0.208459 | Val: 0.163735 | LR: 7.50e-06
+Epoch 176/600 | Train: 0.207139 | Val: 0.161768 | LR: 7.50e-06
+Epoch 177/600 | Train: 0.208969 | Val: 0.161242 | LR: 7.50e-06
+Epoch 178/600 | Train: 0.204782 | Val: 0.161772 | LR: 7.50e-06
+Epoch 179/600 | Train: 0.207637 | Val: 0.163177 | LR: 7.50e-06
+Epoch 180/600 | Train: 0.210200 | Val: 0.165298 | LR: 7.50e-06
+Epoch 181/600 | Train: 0.209432 | Val: 0.167930 | LR: 7.50e-06
+Epoch 182/600 | Train: 0.208157 | Val: 0.168641 | LR: 3.75e-06
+Epoch 183/600 | Train: 0.205970 | Val: 0.162844 | LR: 3.75e-06
+Epoch 184/600 | Train: 0.205675 | Val: 0.162744 | LR: 3.75e-06
+Epoch 185/600 | Train: 0.209314 | Val: 0.161694 | LR: 3.75e-06
+Epoch 186/600 | Train: 0.206992 | Val: 0.160945 | LR: 3.75e-06
+Epoch 187/600 | Train: 0.202598 | Val: 0.161997 | LR: 3.75e-06
+Epoch 188/600 | Train: 0.207917 | Val: 0.161365 | LR: 3.75e-06
+Epoch 189/600 | Train: 0.209073 | Val: 0.163409 | LR: 3.75e-06
+Epoch 190/600 | Train: 0.201264 | Val: 0.162482 | LR: 3.75e-06
+Epoch 191/600 | Train: 0.201926 | Val: 0.161764 | LR: 3.75e-06
+Epoch 192/600 | Train: 0.202631 | Val: 0.164988 | LR: 3.75e-06
+Epoch 193/600 | Train: 0.202250 | Val: 0.161829 | LR: 3.75e-06
+Epoch 194/600 | Train: 0.200942 | Val: 0.162541 | LR: 3.75e-06
+Epoch 195/600 | Train: 0.205932 | Val: 0.161514 | LR: 3.75e-06
+Epoch 196/600 | Train: 0.203198 | Val: 0.162516 | LR: 3.75e-06
+Epoch 197/600 | Train: 0.200569 | Val: 0.161623 | LR: 3.75e-06
+Epoch 198/600 | Train: 0.203047 | Val: 0.165128 | LR: 3.75e-06
+Epoch 199/600 | Train: 0.204230 | Val: 0.165146 | LR: 3.75e-06
+Epoch 200/600 | Train: 0.203460 | Val: 0.163419 | LR: 3.75e-06
+Epoch 201/600 | Train: 0.202536 | Val: 0.162621 | LR: 3.75e-06
+Epoch 202/600 | Train: 0.203446 | Val: 0.161512 | LR: 3.75e-06
+Epoch 203/600 | Train: 0.200021 | Val: 0.160976 | LR: 1.88e-06
+Epoch 204/600 | Train: 0.200728 | Val: 0.160590 | LR: 1.88e-06
+Epoch 205/600 | Train: 0.205543 | Val: 0.160198 | LR: 1.88e-06
+Epoch 206/600 | Train: 0.199522 | Val: 0.160886 | LR: 1.88e-06
+Epoch 207/600 | Train: 0.204167 | Val: 0.160576 | LR: 1.88e-06
+Epoch 208/600 | Train: 0.200862 | Val: 0.161418 | LR: 1.88e-06
+Epoch 209/600 | Train: 0.201751 | Val: 0.161250 | LR: 1.88e-06
+Epoch 210/600 | Train: 0.203144 | Val: 0.161130 | LR: 1.88e-06
+Epoch 211/600 | Train: 0.199275 | Val: 0.160607 | LR: 1.88e-06
+Epoch 212/600 | Train: 0.201640 | Val: 0.160831 | LR: 1.88e-06
+Epoch 213/600 | Train: 0.204943 | Val: 0.160659 | LR: 1.88e-06
+Epoch 214/600 | Train: 0.204891 | Val: 0.160712 | LR: 1.88e-06
+Epoch 215/600 | Train: 0.199992 | Val: 0.160806 | LR: 1.88e-06
+Epoch 216/600 | Train: 0.204012 | Val: 0.161139 | LR: 1.88e-06
+Epoch 217/600 | Train: 0.200196 | Val: 0.160669 | LR: 1.88e-06
+Epoch 218/600 | Train: 0.198688 | Val: 0.161067 | LR: 1.88e-06
+Epoch 219/600 | Train: 0.198354 | Val: 0.160975 | LR: 1.88e-06
+Epoch 220/600 | Train: 0.198712 | Val: 0.161931 | LR: 1.88e-06
+Epoch 221/600 | Train: 0.202220 | Val: 0.161973 | LR: 1.88e-06
+Early stopping at epoch 221
+
+Automatically generating src/landmark_stats.py from the best checkpoint...
+Backbone: HRNet-W48 | Detected channels: [192, 384, 768, 1536]
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=161, val_loss=0.159383, heatmap_mode=probabilistic, grid=centri)
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+Evaluating Stage 1 (no TTA, no Stage 2) on the validation set...
+Wrote src/landmark_stats.py
+Landmarks routed to Stage 2 (4/26): [9, 12, 14, 15]
