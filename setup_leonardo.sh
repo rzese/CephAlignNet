@@ -7,6 +7,7 @@
 # Options (environment variables):
 #     BASE       where venv and model cache go           (default $WORK/$USER)
 #     PY_MODULE  Python module to load                   (default: python)
+#     TORCH_INDEX  PyTorch wheel index (default: CUDA 12.6 build)
 #
 # It creates:
 #   $BASE/venv_ceph      Python venv with requirements.txt
@@ -24,6 +25,7 @@ BASE="${BASE:-$WORK/$USER}"
 VENV="$BASE/venv_ceph"
 HF_HUB_CACHE="$BASE/hf_cache"
 PY_MODULE="${PY_MODULE:-python}"
+TORCH_INDEX="${TORCH_INDEX:-https://download.pytorch.org/whl/cu126}"
 mkdir -p "$BASE" "$HF_HUB_CACHE"
 
 # ── Python ───────────────────────────────────────────────────────────────────
@@ -41,6 +43,9 @@ if [ ! -d "$VENV" ]; then
 fi
 source "$VENV/bin/activate"
 pip install --upgrade pip
+# PyTorch built for CUDA 12.6: runs on any CUDA 12 driver. The default pip wheel
+# (CUDA 13) needs a newer driver than Leonardo's and does not see the GPU.
+pip install torch torchvision --index-url "$TORCH_INDEX"
 pip install -r requirements.txt
 
 # ── pretrained weights into the shared cache (compute nodes are offline) ─────
