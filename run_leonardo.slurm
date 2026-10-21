@@ -20,6 +20,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
+#SBATCH --account=IscrC_NESY
 
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
