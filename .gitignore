@@ -5,3 +5,5 @@ modello_heatmap.pth
 modello_refine.pth
 export_model.py__pycache__/
 calibrazione_incertezza.json
+leonardo_env.sh
+logs/
