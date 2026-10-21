@@ -7,11 +7,11 @@ really is inside the crop (ImageRefinementNet, src/model_refine.py).
 
 Training does not need Stage 1: the starting position is the ground-truth
 point moved by a synthetic error, so Stage 2 cannot learn to "read back"
-Stage 1's own belief (the problem of the old feature-based Stage 2):
-  - with probability 1 - rumore_p_uniforme: Gaussian error, std rumore_sigma_mm per axis
-    (similar to the typical Stage 1 error)
-  - with probability rumore_p_uniforme: uniform error up to +-max_offset_mm per axis
-    (the rarer large errors Stage 2 is meant to fix)
+Stage 1's own belief (the problem of the old feature-based Stage 2).
+The synthetic error has a distance UNIFORM between rumore_min_mm and
+rumore_max_mm and a uniform direction. No assumption is made on the
+distribution of the real Stage 1 errors: with the fusion, Stage 2 counts mostly
+where Stage 1 is uncertain, so it must work equally well at every distance.
 Training crops are also randomly rotated (the target is rotated with them) and
 photometrically perturbed. Validation uses the same synthetic errors with a
 fixed seed, so its numbers are comparable across epochs.
@@ -46,12 +46,12 @@ CONFIG = {
     "save_path":      "modello_refine.pth",
     "patience":       30,
     # ── crop and correction range ──
-    "finestra_mm":    25.6,    # side of the crop (+-12.8 mm around the point)
-    "crop_px":        128,     # -> 0.2 mm per crop pixel
-    "max_offset_mm":  5.0,     # largest correction Stage 2 is trained for / allowed to apply
-    # ── synthetic starting errors ──
-    "rumore_sigma_mm":   1.5,
-    "rumore_p_uniforme": 0.3,
+    "finestra_mm":    38.4,    # side of the crop (+-19.2 mm: the true point stays well inside even at 11.5 mm)
+    "crop_px":        192,     # -> 0.2 mm per crop pixel
+    "max_offset_mm":  11.5,    # largest correction Stage 2 is trained for / allowed to apply
+    # ── synthetic starting errors: distance uniform in [min, max], uniform direction ──
+    "rumore_min_mm":  0.5,
+    "rumore_max_mm":  11.5,
     # ── augmentation ──
     "rotazione_max_gradi": 10.0,
     # ── loss ──
@@ -78,12 +78,12 @@ def prepara_dati(config):
 
 
 def errore_sintetico(K, config, generator=None):
-    """[K, 2] synthetic errors in mm (Gaussian mixed with uniform, clipped)."""
-    m = config["max_offset_mm"]
-    gauss = torch.randn(K, 2, generator=generator) * config["rumore_sigma_mm"]
-    unif = (torch.rand(K, 2, generator=generator) * 2 - 1) * m
-    usa_unif = torch.rand(K, 1, generator=generator) < config["rumore_p_uniforme"]
-    return torch.where(usa_unif, unif, gauss).clamp(-m, m)
+    """[K, 2] synthetic errors in mm: distance uniform in [rumore_min_mm,
+    rumore_max_mm], direction uniform over 360 degrees."""
+    r0, r1 = config["rumore_min_mm"], config["rumore_max_mm"]
+    raggio = r0 + torch.rand(K, generator=generator) * (r1 - r0)
+    angolo = torch.rand(K, generator=generator) * (2 * torch.pi)
+    return torch.stack([raggio * torch.cos(angolo), raggio * torch.sin(angolo)], dim=1)
 
 
 def genera_batch(immagini, punti, masks, ps, config, device, training, generator=None):
@@ -182,7 +182,9 @@ def main():
     print(f"Device: {device}")
     print(f"Stage 2 on the original radiograph: window {CONFIG['finestra_mm']} mm "
           f"({CONFIG['finestra_mm'] / CONFIG['crop_px']:.2f} mm/px), max offset {CONFIG['max_offset_mm']} mm, "
-          f"synthetic error sigma {CONFIG['rumore_sigma_mm']} mm + {CONFIG['rumore_p_uniforme']:.0%} uniform")
+          f"synthetic error distance uniform in [{CONFIG['rumore_min_mm']}, {CONFIG['rumore_max_mm']}] mm")
+    if CONFIG["rumore_max_mm"] > 0.5 * CONFIG["finestra_mm"] - 3.0:
+        print("[WARN] rumore_max_mm is close to the crop border: enlarge finestra_mm")
 
     train_loader, val_loader = prepara_dati(CONFIG)
     model = ImageRefinementNet(num_landmarks=CONFIG["num_landmarks"], finestra_mm=CONFIG["finestra_mm"],

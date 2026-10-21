@@ -261,8 +261,8 @@ def test_stage2_immagine_impara_a_ritrovare_il_punto():
     point back onto the landmark: the error must drop by more than half."""
     import train_refine as tr
     torch.manual_seed(0); random.seed(0)
-    cfg = dict(tr.CONFIG, finestra_mm=12.8, crop_px=64, max_offset_mm=3.0, rumore_sigma_mm=1.5,
-               rumore_p_uniforme=0.3, rotazione_max_gradi=10.0, peso_nll=1.0)
+    cfg = dict(tr.CONFIG, finestra_mm=12.8, crop_px=64, max_offset_mm=3.0, rumore_min_mm=0.5,
+               rumore_max_mm=3.0, rotazione_max_gradi=10.0, peso_nll=1.0)
     rng = np.random.default_rng(0)
 
     def lotto(n_img=6):

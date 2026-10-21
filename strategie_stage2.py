@@ -42,7 +42,8 @@ import sys
 import numpy as np
 
 SDR_MM = [2.0, 2.5, 3.0, 4.0]
-GUARDIA_MM = 6.0     # corrections larger than this (per axis) are discarded, as in applica_stage2
+FATTORE_GUARDIA = 1.2   # corrections larger than this x max_offset_mm (per axis) are discarded, as in applica_stage2
+MAX_OFFSET_DEFAULT = 5.0   # for CSVs without the max_offset_mm column (Stage 2 trained before it was written)
 NUM_LANDMARKS = 26
 
 
@@ -59,9 +60,11 @@ def carica(path):
         d[k] = np.array([float(r[k]) for r in righe])
     d["lm"] = np.array([nomi_lm.index(x) for x in d["landmark"]])
     d["e1"] = np.stack([d["e1x"], d["e1y"]], 1)
+    max_offset = float(righe[0]["max_offset_mm"]) if "max_offset_mm" in righe[0] else MAX_OFFSET_DEFAULT
+    guardia = FATTORE_GUARDIA * max_offset
     for nome, (kx, ky) in (("d", ("d2x", "d2y")), ("dt", ("d2tx", "d2ty"))):
         v = np.stack([d[kx], d[ky]], 1)
-        d[nome] = np.where((np.abs(v) <= GUARDIA_MM).all(1, keepdims=True), v, 0.0)
+        d[nome] = np.where((np.abs(v) <= guardia).all(1, keepdims=True), v, 0.0)
     return d
 
 

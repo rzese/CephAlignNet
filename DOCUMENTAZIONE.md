@@ -430,32 +430,32 @@ originale**, alla risoluzione piena, attorno alla predizione dello Stage 1.
 
 ```
 radiografia originale (≈0.1 mm/px)
-     │  ritaglio 25.6 × 25.6 mm centrato sul punto dello Stage 1
-     ▼  (roi_align → 128 × 128 px = 0.2 mm/px, normalizzato media 0 / dev. std 1)
-encoder CNN (128 → 32 celle, blocchi residui con dilatazione 1-2-4-8)
+     │  ritaglio 38.4 × 38.4 mm centrato sul punto dello Stage 1
+     ▼  (roi_align → 192 × 192 px = 0.2 mm/px, normalizzato media 0 / dev. std 1)
+encoder CNN (192 → 48 celle, blocchi residui con dilatazione 1-2-4-8)
      ▼
 26 heatmap 32×32 (una per landmark) → si sceglie quella del landmark
      ▼  softmax + baricentro (soft-argmax)
 posizione del landmark nel ritaglio → offset (dx, dy) in mm dal centro
 ```
 
-- **Dimensioni in mm, non in pixel**: la finestra è sempre di 25.6 mm, qualunque sia il
+- **Dimensioni in mm, non in pixel**: la finestra è sempre di 38.4 mm (192 px, 0.2 mm/px), qualunque sia il
   pixel size dell'immagine, quindi i ritagli sono confrontabili tra dataset diversi.
 - **Heatmap + baricentro invece di una regressione diretta**: la rete indica *dove* è il
   punto nel ritaglio. Le convoluzioni conservano l'informazione spaziale, che il vecchio
   regressore con pooling globale perdeva.
-- **Correzione massima** `max_offset_mm` (default 5 mm). In applicazione le correzioni
-  oltre 1.2 × 5 = 6 mm per asse vengono scartate (guardia).
+- **Correzione massima** `max_offset_mm` (default 11.5 mm). In applicazione le correzioni
+  oltre 1.2 × `max_offset_mm` per asse vengono scartate (guardia).
 
 ## 10. Training dello Stage 2 (`train_refine.py`)
 
 **Non serve lo Stage 1.** Per ogni landmark annotato:
 
-1. si parte dal **punto vero** e lo si sposta di un **errore sintetico** (in mm, per asse):
-   - con probabilità 70%: gaussiano, deviazione standard `rumore_sigma_mm` = 1.5 mm
-     (simile all'errore tipico dello Stage 1);
-   - con probabilità 30% (`rumore_p_uniforme`): uniforme fino a ±`max_offset_mm`
-     (gli errori grandi, quelli che lo Stage 2 deve correggere);
+1. si parte dal **punto vero** e lo si sposta di un **errore sintetico**: distanza
+   **uniforme** tra `rumore_min_mm` = 0.5 e `rumore_max_mm` = 11.5 mm, direzione
+   uniforme. Non si fa nessuna ipotesi sulla distribuzione degli errori reali dello
+   Stage 1: con la fusione lo Stage 2 pesa soprattutto dove lo Stage 1 è incerto, quindi
+   deve funzionare allo stesso modo a ogni distanza;
 2. si ritaglia la radiografia attorno al punto spostato;
 3. la rete deve indicare dov'è il punto vero nel ritaglio.
 

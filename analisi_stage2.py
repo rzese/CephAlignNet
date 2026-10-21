@@ -163,6 +163,8 @@ def carica_csv(path):
     }
     for k in ("err1", "err2", "sigma_tta", "sigma_heatmap", "corr_mm"):
         r[k] = np.array([float(x[k]) for x in righe])
+    if "max_offset_mm" in righe[0]:
+        r["max_offset_mm"] = float(righe[0]["max_offset_mm"])
     return r
 
 
@@ -243,8 +245,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", help="experiment folder with modello_heatmap.pth and modello_refine.pth")
     ap.add_argument("--da-csv", help="only redo the report from a CSV written by this script (no models, no GPU)")
-    ap.add_argument("--max-offset-mm", type=float, default=5.0,
-                    help="with --da-csv: Stage 2 max correction per axis, for section E")
+    ap.add_argument("--max-offset-mm", type=float,
+                    help="with --da-csv: Stage 2 max correction per axis, for section E "
+                         "(default: the max_offset_mm column of the CSV, else 5)")
     ap.add_argument("--stage2", help="Stage 2 checkpoint (default: <dir>/modello_refine.pth)")
     ap.add_argument("--batch-size", type=int)
     ap.add_argument("--no-tta", action="store_true")
@@ -253,7 +256,8 @@ def main():
         r = carica_csv(a.da_csv)
         stats = os.path.join(a.dir or os.path.dirname(a.da_csv), "landmark_stats.py")
         maschera_fissa = set(runpy.run_path(stats)["REFINE_LANDMARK_MASK"]) if os.path.exists(stats) else set()
-        report(r, a.max_offset_mm * np.sqrt(2), maschera_fissa)
+        max_offset = a.max_offset_mm or r.get("max_offset_mm", 5.0)
+        report(r, max_offset * np.sqrt(2), maschera_fissa)
         return
     if not a.dir:
         ap.error("--dir is required (unless --da-csv is given)")
@@ -298,6 +302,8 @@ def main():
         max_corr_mm = float(stage2.max_offset * np.sqrt(2) * np.mean(dims.mean(axis=1) * ps))
 
     report(r, max_corr_mm, maschera_fissa)
+    if getattr(stage2, "tipo_input", "feature") == "immagine":
+        r["max_offset_mm"] = np.full(len(r["img"]), stage2.max_offset_mm)   # read by strategie_stage2.py
 
     nome = "analisi_stage2.csv" if not a.stage2 else \
         f"analisi_stage2_{os.path.splitext(os.path.basename(a.stage2))[0]}.csv"
