@@ -36,6 +36,7 @@ source "$VENV/bin/activate"
 export HF_HUB_CACHE HF_HUB_OFFLINE=1
 export CONDA_ENV=none          # the venv is already active: run_tutto.slurm must not touch conda
 
+nvidia-smi --query-gpu=name,driver_version --format=csv,noheader || echo "nvidia-smi: no GPU visible in this job"
 python -c "import sys, torch; ok = torch.cuda.is_available(); \
 print('torch', torch.__version__, '| cuda', ok, '|', torch.cuda.get_device_name(0) if ok else 'no GPU'); \
 sys.exit(0 if ok else 1)" || { echo "ERROR: PyTorch does not see the GPU"; exit 1; }
