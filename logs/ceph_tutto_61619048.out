@@ -1,0 +1,97 @@
+Loading python/3.11.7
+  Loading requirement: bzip2/1.0.8-ib3znej libmd/1.0.4-2km2lxx
+    libbsd/0.12.1-oocs6an expat/2.6.2-p2t4wry ncurses/6.5-svfl57u
+    readline/8.2-zeda6mx gdbm/1.23-wiol7vk libiconv/1.17-nhc3mhm
+    xz/5.4.6-xxxg42c zlib-ng/2.1.6-jkgunjc libxml2/2.10.3-zbbe7lm
+    pigz/2.8-5bwzpml zstd/1.5.6-uq5yyux tar/1.34-jgektnv gettext/0.22.5-hsxgafg
+    libffi/3.4.6-4vs4jpp libxcrypt/4.4.35-7om46b5 sqlite/3.43.2-4kl5mnp
+    util-linux-uuid/2.38.1-5achpds
+torch 2.14.1+cu126 | cuda True | NVIDIA A100-SXM-64GB
+Job 61619048 on lrdn3355.leonardo.local — mer 21 ott 2026, 14.00.36, CEST
+Modes: learned_sigma | batch heatmap=16 refine=16 | epochs=1 | output: esperimenti_prova
+Initial Stage 1 statistics: fallback values
+Wed Oct 21 14:00:36 2026       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 535.274.02             Driver Version: 535.274.02   CUDA Version: 12.2     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  NVIDIA A100-SXM-64GB           On  | 00000000:8F:00.0 Off |                    0 |
+| N/A   42C    P0              61W / 462W |      0MiB / 65536MiB |      0%      Default |
+|                                         |                      |             Disabled |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+torch 2.14.1+cu126 | cuda True
+[WARN] src/landmark_stats.py non trovato — uso valori di fallback (esegui `python -m src.analiz_land` per generarli dai dati).
+[WARN] src/landmark_stats.py not found — using fallback REFINE_LANDMARK_MASK (run `python -m src.analiz_land` to generate it from the data).
+OK    test_analisi_incertezza_copertura_conforme
+OK    test_augmenta_coordinate_coerenti_con_immagine
+OK    test_collate_base_conserva_dimensioni
+OK    test_crea_split_stabile_con_o_senza_tracciati
+OK    test_derotazione_tta_inverte_la_rotazione
+OK    test_errori_e_covarianze_in_mm_su_immagini_non_quadrate
+OK    test_fusione_stage1_stage2
+OK    test_griglia_centri_codifica_decodifica_senza_bias
+OK    test_loss_tutte_le_modalita_fanno_backward
+OK    test_momenti_gaussiana_nota
+OK    test_nll_impara_distribuzione_centrata_e_larga_quanto_l_errore
+OK    test_regression_voting_offset_perfetti
+OK    test_ritaglio_originale_centrato_in_mm
+OK    test_sigma_addestrabile_converge_verso_la_larghezza_vera
+OK    test_stage2_immagine_forma_guardia_e_selezione
+OK    test_stage2_immagine_impara_a_ritrovare_il_punto
+OK    test_stage2_tta_riporta_le_risposte_nel_ritaglio_originale
+OK    test_stage2_vettorizzato_e_guardia
+[TracciatiDataset] 2 samples | 0 skipped | /tmp/tmpny0az9o6
+  scale per case: 1 from table, 1 from .docx, 0 with the global coord_scale=0.01 (pixel_size=0.1mm/px)
+  Set DEBUG=True to inspect the Excel content.
+OK    test_tracciati_scala_per_caso
+OK    test_vincoli_geometrici_rispettano_il_verso_del_volto
+
+20/20 passed
+
+################################################################
+# heatmap_mode = learned_sigma   →   esperimenti_prova/learned_sigma   (mer 21 ott 2026, 14.02.06, CEST)
+################################################################
+=== [learned_sigma] 1/3 Stage 1 training ===
+[WARN] src/landmark_stats.py non trovato — uso valori di fallback (esegui `python -m src.analiz_land` per generarli dai dati).
+[esegui_esperimento] step=heatmap dir=esperimenti_prova/learned_sigma
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "tracciati_path": null,
+ "tracciati_tabella_scale": null,
+ "num_landmarks": 26,
+ "img_size": 512,
+ "heatmap_size": 256,
+ "sigma": 4.0,
+ "batch_size": 16,
+ "num_epochs": 1,
+ "learning_rate": 3e-05,
+ "val_split": 0.2,
+ "save_path": "esperimenti_prova/learned_sigma/modello_heatmap.pth",
+ "patience": 60,
+ "geo_loss_weight": 0.05,
+ "heatmap_mode": "learned_sigma",
+ "griglia": "centri",
+ "sigma_penalita": 0.1,
+ "lr_sigma": 0.001,
+ "sigma_min": 1.0,
+ "sigma_max": 12.0
+}
+Device: cuda | Model: HRNetLandmark (W48) | heatmap_mode: learned_sigma
+batch_size=16 | LR=3.0e-05 | img_size=512 | heatmap_size=256
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+Unexpected keys (downsamp_modules.0.1.num_batches_tracked, downsamp_modules.1.1.num_batches_tracked, downsamp_modules.2.1.num_batches_tracked, final_layer.1.num_batches_tracked, downsamp_modules.0.0.bias, downsamp_modules.0.0.weight, downsamp_modules.0.1.bias, downsamp_modules.0.1.running_mean, downsamp_modules.0.1.running_var, downsamp_modules.0.1.weight, downsamp_modules.1.0.bias, downsamp_modules.1.0.weight, downsamp_modules.1.1.bias, downsamp_modules.1.1.running_mean, downsamp_modules.1.1.running_var, downsamp_modules.1.1.weight, downsamp_modules.2.0.bias, downsamp_modules.2.0.weight, downsamp_modules.2.1.bias, downsamp_modules.2.1.running_mean, downsamp_modules.2.1.running_var, downsamp_modules.2.1.weight, final_layer.0.bias, final_layer.0.weight, final_layer.1.bias, final_layer.1.running_mean, final_layer.1.running_var, final_layer.1.weight, classifier.bias, classifier.weight) found while loading pretrained weights. This may be expected if model is being adapted.
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]

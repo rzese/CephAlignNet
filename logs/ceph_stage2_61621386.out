@@ -1,0 +1,235 @@
+Loading python/3.11.7
+  Loading requirement: bzip2/1.0.8-ib3znej libmd/1.0.4-2km2lxx
+    libbsd/0.12.1-oocs6an expat/2.6.2-p2t4wry ncurses/6.5-svfl57u
+    readline/8.2-zeda6mx gdbm/1.23-wiol7vk libiconv/1.17-nhc3mhm
+    xz/5.4.6-xxxg42c zlib-ng/2.1.6-jkgunjc libxml2/2.10.3-zbbe7lm
+    pigz/2.8-5bwzpml zstd/1.5.6-uq5yyux tar/1.34-jgektnv gettext/0.22.5-hsxgafg
+    libffi/3.4.6-4vs4jpp libxcrypt/4.4.35-7om46b5 sqlite/3.43.2-4kl5mnp
+    util-linux-uuid/2.38.1-5achpds
+NVIDIA A100-SXM-64GB, 535.274.02
+torch 2.14.1+cu126 | cuda True
+Stage 2 only — esperimenti_run2/s2_uniforme — mer 21 ott 2026, 14.35.40, CEST
+=== 1/3 Stage 2 training ===
+[WARN] src/landmark_stats.py non trovato — uso valori di fallback (esegui `python -m src.analiz_land` per generarli dai dati).
+[WARN] src/landmark_stats.py not found — using fallback REFINE_LANDMARK_MASK (run `python -m src.analiz_land` to generate it from the data).
+[esegui_esperimento] step=refine dir=esperimenti_run2/s2_uniforme
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "tracciati_path": null,
+ "tracciati_tabella_scale": null,
+ "num_landmarks": 26,
+ "batch_size": 8,
+ "num_workers": 4,
+ "num_epochs": 200,
+ "learning_rate": 0.001,
+ "val_split": 0.2,
+ "save_path": "esperimenti_run2/s2_uniforme/modello_refine.pth",
+ "patience": 30,
+ "finestra_mm": 38.4,
+ "crop_px": 192,
+ "max_offset_mm": 11.5,
+ "rumore_min_mm": 0.5,
+ "rumore_max_mm": 11.5,
+ "rotazione_max_gradi": 10.0,
+ "peso_nll": 1.0,
+ "stage1_path": "esperimenti_run2/s2_uniforme/modello_heatmap.pth"
+}
+Device: cuda
+Stage 2 on the original radiograph: window 38.4 mm (0.20 mm/px), max offset 11.5 mm, synthetic error distance uniform in [0.5, 11.5] mm
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+Epoch   1/200 | Train: 1.8877 | Val: 1.1181 | LR: 1.00e-03 | val error 5.93 -> 1.63 mm (median 5.90 -> 1.15) | improved 90.5%
+  → saved (val_loss: 1.1181)
+Epoch   2/200 | Train: 1.0758 | Val: 0.9114 | LR: 1.00e-03 | val error 5.93 -> 1.32 mm (median 5.90 -> 0.96) | improved 92.9%
+  → saved (val_loss: 0.9114)
+Epoch   3/200 | Train: 0.9277 | Val: 0.8654 | LR: 1.00e-03 | val error 5.93 -> 1.26 mm (median 5.90 -> 0.90) | improved 92.8%
+  → saved (val_loss: 0.8654)
+Epoch   4/200 | Train: 0.8565 | Val: 0.8160 | LR: 1.00e-03 | val error 5.93 -> 1.18 mm (median 5.90 -> 0.83) | improved 93.5%
+  → saved (val_loss: 0.8160)
+Epoch   5/200 | Train: 0.8138 | Val: 0.7867 | LR: 1.00e-03 | val error 5.93 -> 1.14 mm (median 5.90 -> 0.80) | improved 94.0%
+  → saved (val_loss: 0.7867)
+Epoch   6/200 | Train: 0.7821 | Val: 0.7761 | LR: 1.00e-03 | val error 5.93 -> 1.13 mm (median 5.90 -> 0.81) | improved 93.8%
+  → saved (val_loss: 0.7761)
+Epoch   7/200 | Train: 0.7577 | Val: 0.7734 | LR: 1.00e-03 | val error 5.93 -> 1.12 mm (median 5.90 -> 0.77) | improved 93.9%
+  → saved (val_loss: 0.7734)
+Epoch   8/200 | Train: 0.7345 | Val: 0.7688 | LR: 1.00e-03 | val error 5.93 -> 1.12 mm (median 5.90 -> 0.78) | improved 94.1%
+  → saved (val_loss: 0.7688)
+Epoch   9/200 | Train: 0.7156 | Val: 0.7612 | LR: 1.00e-03 | val error 5.93 -> 1.10 mm (median 5.90 -> 0.77) | improved 94.1%
+  → saved (val_loss: 0.7612)
+Epoch  10/200 | Train: 0.7002 | Val: 0.7621 | LR: 1.00e-03 | val error 5.93 -> 1.11 mm (median 5.90 -> 0.77) | improved 94.1%
+Epoch  11/200 | Train: 0.6835 | Val: 0.7646 | LR: 1.00e-03 | val error 5.93 -> 1.11 mm (median 5.90 -> 0.76) | improved 94.0%
+Epoch  12/200 | Train: 0.6701 | Val: 0.7431 | LR: 1.00e-03 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.76) | improved 94.3%
+  → saved (val_loss: 0.7431)
+Epoch  13/200 | Train: 0.6604 | Val: 0.7564 | LR: 1.00e-03 | val error 5.93 -> 1.09 mm (median 5.90 -> 0.76) | improved 94.4%
+Epoch  14/200 | Train: 0.6461 | Val: 0.7471 | LR: 1.00e-03 | val error 5.93 -> 1.07 mm (median 5.90 -> 0.75) | improved 94.3%
+Epoch  15/200 | Train: 0.6402 | Val: 0.7381 | LR: 1.00e-03 | val error 5.93 -> 1.07 mm (median 5.90 -> 0.74) | improved 94.3%
+  → saved (val_loss: 0.7381)
+Epoch  16/200 | Train: 0.6175 | Val: 0.7508 | LR: 1.00e-03 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.75) | improved 94.5%
+Epoch  17/200 | Train: 0.6153 | Val: 0.7657 | LR: 1.00e-03 | val error 5.93 -> 1.10 mm (median 5.90 -> 0.76) | improved 93.9%
+Epoch  18/200 | Train: 0.5988 | Val: 0.7517 | LR: 1.00e-03 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.75) | improved 94.0%
+Epoch  19/200 | Train: 0.5830 | Val: 0.7498 | LR: 1.00e-03 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 94.4%
+Epoch  20/200 | Train: 0.5792 | Val: 0.7559 | LR: 1.00e-03 | val error 5.93 -> 1.09 mm (median 5.90 -> 0.76) | improved 94.1%
+Epoch  21/200 | Train: 0.5718 | Val: 0.7653 | LR: 1.00e-03 | val error 5.93 -> 1.10 mm (median 5.90 -> 0.75) | improved 94.2%
+Epoch  22/200 | Train: 0.5574 | Val: 0.7609 | LR: 1.00e-03 | val error 5.93 -> 1.09 mm (median 5.90 -> 0.74) | improved 94.3%
+Epoch  23/200 | Train: 0.5491 | Val: 0.7706 | LR: 1.00e-03 | val error 5.93 -> 1.10 mm (median 5.90 -> 0.75) | improved 94.0%
+Epoch  24/200 | Train: 0.5442 | Val: 0.7627 | LR: 5.00e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.73) | improved 94.2%
+Epoch  25/200 | Train: 0.4966 | Val: 0.7475 | LR: 5.00e-04 | val error 5.93 -> 1.06 mm (median 5.90 -> 0.73) | improved 94.3%
+Epoch  26/200 | Train: 0.4751 | Val: 0.7552 | LR: 5.00e-04 | val error 5.93 -> 1.07 mm (median 5.90 -> 0.73) | improved 94.2%
+Epoch  27/200 | Train: 0.4618 | Val: 0.7580 | LR: 5.00e-04 | val error 5.93 -> 1.07 mm (median 5.90 -> 0.74) | improved 94.3%
+Epoch  28/200 | Train: 0.4541 | Val: 0.7622 | LR: 5.00e-04 | val error 5.93 -> 1.07 mm (median 5.90 -> 0.74) | improved 94.4%
+Epoch  29/200 | Train: 0.4502 | Val: 0.7632 | LR: 5.00e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.73) | improved 93.9%
+Epoch  30/200 | Train: 0.4412 | Val: 0.7728 | LR: 5.00e-04 | val error 5.93 -> 1.09 mm (median 5.90 -> 0.75) | improved 93.9%
+Epoch  31/200 | Train: 0.4351 | Val: 0.7673 | LR: 5.00e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 93.9%
+Epoch  32/200 | Train: 0.4269 | Val: 0.7680 | LR: 5.00e-04 | val error 5.93 -> 1.07 mm (median 5.90 -> 0.73) | improved 94.1%
+Epoch  33/200 | Train: 0.4226 | Val: 0.7763 | LR: 2.50e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 94.3%
+Epoch  34/200 | Train: 0.4001 | Val: 0.7731 | LR: 2.50e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 93.9%
+Epoch  35/200 | Train: 0.3872 | Val: 0.7705 | LR: 2.50e-04 | val error 5.93 -> 1.07 mm (median 5.90 -> 0.73) | improved 94.2%
+Epoch  36/200 | Train: 0.3852 | Val: 0.7714 | LR: 2.50e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 94.2%
+Epoch  37/200 | Train: 0.3768 | Val: 0.7814 | LR: 2.50e-04 | val error 5.93 -> 1.09 mm (median 5.90 -> 0.75) | improved 93.9%
+Epoch  38/200 | Train: 0.3738 | Val: 0.7789 | LR: 2.50e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 94.0%
+Epoch  39/200 | Train: 0.3710 | Val: 0.7785 | LR: 2.50e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 94.1%
+Epoch  40/200 | Train: 0.3652 | Val: 0.7875 | LR: 2.50e-04 | val error 5.93 -> 1.09 mm (median 5.90 -> 0.74) | improved 94.0%
+Epoch  41/200 | Train: 0.3598 | Val: 0.7877 | LR: 2.50e-04 | val error 5.93 -> 1.09 mm (median 5.90 -> 0.75) | improved 94.0%
+Epoch  42/200 | Train: 0.3596 | Val: 0.7902 | LR: 1.25e-04 | val error 5.93 -> 1.09 mm (median 5.90 -> 0.75) | improved 94.1%
+Epoch  43/200 | Train: 0.3464 | Val: 0.7830 | LR: 1.25e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 93.8%
+Epoch  44/200 | Train: 0.3453 | Val: 0.7855 | LR: 1.25e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 93.9%
+Epoch  45/200 | Train: 0.3413 | Val: 0.7852 | LR: 1.25e-04 | val error 5.93 -> 1.08 mm (median 5.90 -> 0.74) | improved 94.0%
+Early stopping at epoch 45
+=== 2/3 Stage 2 analysis ===
+[WARN] src/landmark_stats.py non trovato — uso valori di fallback (esegui `python -m src.analiz_land` per generarli dai dati).
+[WARN] src/landmark_stats.py not found — using fallback REFINE_LANDMARK_MASK (run `python -m src.analiz_land` to generate it from the data).
+Device: cuda | dir: esperimenti_run2/s2_uniforme | TTA: True
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=161, val_loss=0.159383, heatmap_mode=probabilistic, grid=centri)
+Stage 2 loaded (ImageRefinementNet on the original radiograph, window 38.4 mm / 192 px, max offset 11.5 mm, epoch=15, val_loss=0.7381)
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+Fixed Stage 2 mask: ['R', 'Co', 'Go', 'Po']
+  images processed: 2  images processed: 4  images processed: 6  images processed: 8  images processed: 10  images processed: 12  images processed: 14  images processed: 16  images processed: 18  images processed: 20  images processed: 22  images processed: 24  images processed: 26  images processed: 28  images processed: 30  images processed: 32  images processed: 34  images processed: 36  images processed: 38  images processed: 40  images processed: 42  images processed: 44  images processed: 46  images processed: 48  images processed: 50  images processed: 52  images processed: 54  images processed: 56  images processed: 58  images processed: 60  images processed: 62  images processed: 64  images processed: 66  images processed: 68  images processed: 70  images processed: 72  images processed: 74  images processed: 76  images processed: 78  images processed: 80  images processed: 82  images processed: 84  images processed: 86  images processed: 88  images processed: 90  images processed: 92  images processed: 94  images processed: 96  images processed: 98  images processed: 100  images processed: 102  images processed: 104  images processed: 106  images processed: 108  images processed: 110  images processed: 112  images processed: 114  images processed: 116  images processed: 118  images processed: 120  images processed: 122  images processed: 124  images processed: 126  images processed: 128  images processed: 130  images processed: 132  images processed: 134  images processed: 136  images processed: 138  images processed: 140  images processed: 142  images processed: 144  images processed: 146  images processed: 148  images processed: 150  images processed: 152  images processed: 154  images processed: 156  images processed: 158  images processed: 160  images processed: 162  images processed: 164  images processed: 166  images processed: 168  images processed: 170  images processed: 172  images processed: 174  images processed: 176  images processed: 178  images processed: 180  images processed: 182  images processed: 184  images processed: 186  images processed: 188  images processed: 190  images processed: 192  images processed: 194  images processed: 196  images processed: 198  images processed: 200  images processed: 202  images processed: 204  images processed: 206  images processed: 208  images processed: 210  images processed: 212  images processed: 214  images processed: 216  images processed: 218  images processed: 220  images processed: 222  images processed: 224  images processed: 226  images processed: 228  images processed: 230  images processed: 232  images processed: 234  images processed: 236  images processed: 238  images processed: 240  images processed: 242  images processed: 244  images processed: 246  images processed: 248  images processed: 250  images processed: 252  images processed: 254  images processed: 256  images processed: 258  images processed: 260  images processed: 262  images processed: 264  images processed: 266  images processed: 268  images processed: 270  images processed: 272  images processed: 274  images processed: 276  images processed: 278  images processed: 280
+
+================================================================
+A. MRE (mm) and accuracy — 6769 points, 280 images
+================================================================
+                                          MRE     <2mm  <2.5mm    <3mm    <4mm
+  Stage 1 only                          0.874    91.8%   95.3%   97.5%   99.2%
+  Stage 2 on the current fixed mask     0.968    89.5%   93.4%   95.8%   98.2%
+  Stage 2 on all landmarks              1.075    87.3%   91.8%   94.7%   97.6%
+  Ideal (Stage 2 only where it helps)   0.735    94.0%   96.6%   98.2%   99.4%
+  fixed mask = ['R', 'Co', 'Go', 'Po'] | 'Ideal' = upper bound for ANY selection rule
+  Stage 2 improves 39.8% of the points, worsens 60.2%, leaves 0.0% unchanged
+
+================================================================
+B. Stage 2 effect per quintile of sigma_tta
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.02-0.14     0.438   0.554  +0.116    33.8%        0.0%
+         2   0.14-0.20     0.643   0.729  +0.086    44.2%        0.0%
+         3   0.20-0.27     0.819   0.909  +0.091    44.9%        0.0%
+         4   0.27-0.39     1.043   1.257  +0.215    41.7%        0.0%
+         5   0.39-4.32     1.426   1.924  +0.498    34.3%        0.0%
+
+C. Apply Stage 2 only where sigma_tta > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  0.874    91.8%   95.3%   97.5%   99.2%
+       0.02      100.0%  1.075    87.3%   91.8%   94.7%   97.6%
+       0.23       50.0%  1.027    87.8%   92.1%   94.8%   97.7%
+       0.27       40.0%  1.016    88.0%   92.2%   94.9%   97.7%
+       0.32       30.0%  1.001    88.5%   92.3%   95.0%   97.7%
+       0.39       20.0%  0.973    89.4%   93.1%   95.5%   98.0%
+       0.50       10.0%  0.941    90.3%   93.9%   96.1%   98.2%
+       0.63        5.0%  0.911    91.2%   94.6%   96.7%   98.5%
+       1.12        1.0%  0.883    91.7%   95.1%   97.3%   99.0%
+  threshold chosen on even images: 1.09 mm -> on odd images MRE 0.895 (Stage 1) vs 0.904 (selective Stage 2), 1.2% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  0.895    91.1%   94.8%   97.2%   99.0%
+      selective Stage 2  0.904    91.1%   94.7%   97.0%   98.9%
+
+================================================================
+B. Stage 2 effect per quintile of sigma_heatmap
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.32-1.23     0.465   0.602  +0.137    34.0%        0.0%
+         2   1.23-1.64     0.705   0.844  +0.139    41.1%        0.0%
+         3   1.64-2.18     0.854   1.014  +0.160    42.1%        0.0%
+         4   2.18-3.04     1.007   1.222  +0.215    40.3%        0.0%
+         5   3.04-31.93    1.339   1.693  +0.354    41.4%        0.0%
+
+C. Apply Stage 2 only where sigma_heatmap > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  0.874    91.8%   95.3%   97.5%   99.2%
+       0.32      100.0%  1.075    87.3%   91.8%   94.7%   97.6%
+       1.89       50.0%  1.002    88.6%   92.8%   95.2%   97.7%
+       2.18       40.0%  0.988    88.8%   93.0%   95.4%   97.9%
+       2.53       30.0%  0.963    89.6%   93.5%   95.8%   98.1%
+       3.04       20.0%  0.945    90.2%   93.9%   96.2%   98.3%
+       4.04       10.0%  0.921    90.8%   94.5%   96.6%   98.6%
+       5.29        5.0%  0.900    91.5%   94.8%   96.9%   98.8%
+       8.69        1.0%  0.880    91.7%   95.2%   97.4%   99.1%
+  threshold chosen on even images: 9.05 mm -> on odd images MRE 0.895 (Stage 1) vs 0.897 (selective Stage 2), 0.7% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  0.895    91.1%   94.8%   97.2%   99.0%
+      selective Stage 2  0.897    91.0%   94.8%   97.1%   99.0%
+
+================================================================
+D. Per landmark (Stage 2 applied to every point)
+================================================================
+         err S1  err S2   delta improves in mask
+  A       0.913   0.964  +0.051    44.3%        
+  ANS     1.059   1.179  +0.120    41.8%        
+  B       1.002   1.191  +0.189    40.4%        
+  Me      0.528   0.573  +0.046    42.5%        
+  N       0.687   0.777  +0.090    43.6%        
+  Or      1.063   1.309  +0.246    39.3%        
+  Pog     0.597   0.652  +0.056    40.7%        
+  PNS     1.057   1.293  +0.235    38.2%        
+  Pn      0.639   0.677  +0.038    44.9%        
+  R       1.104   2.163  +1.059    21.3%     yes
+  S       0.538   0.629  +0.091    38.2%        
+  Ar      0.959   1.377  +0.419    32.5%        
+  Co      1.125   1.783  +0.658    22.7%     yes
+  Gn      0.486   0.569  +0.082    36.8%        
+  Go      1.099   1.562  +0.463    32.1%     yes
+  Po      1.127   1.674  +0.547    27.1%     yes
+  LPM     1.012   1.287  +0.275    34.3%        
+  LIT     0.617   0.670  +0.053    43.2%        
+  LMT     1.004   1.241  +0.237    39.1%        
+  UIT     0.512   0.600  +0.088    46.1%        
+  UIA     1.196   1.323  +0.128    43.0%        
+  LIA     1.171   1.496  +0.325    33.8%        
+  Ls      0.839   0.766  -0.072    56.8%        
+  Li      0.791   0.843  +0.052    43.6%        
+  Pog`    1.166   1.271  +0.105    45.4%        
+  Sn      0.723   0.715  -0.008    52.1%        
+
+================================================================
+E. Size of the Stage 2 corrections
+================================================================
+  max correction allowed (MAX_OFFSET): ~16.26 mm on this data
+  proposed correction: median 0.460 mm | 90th pct 1.397 mm | max 10.551 mm
+  rejected by the guard: 0.0%
+  Stage 1 error: median 0.64 mm | errors > max correction: 0.0%
+  Spearman(correction size, Stage 1 error): +0.327   (near 0 = Stage 2 does not 'see' where Stage 1 is wrong)
+
+Per-point data saved to esperimenti_run2/s2_uniforme/analisi_stage2.csv
+Compare the ways of combining Stage 1 and Stage 2 with:  python strategie_stage2.py esperimenti_run2/s2_uniforme/analisi_stage2.csv
+=== 3/3 Ways of combining Stage 1 and Stage 2 (fusion re-fitted, nothing saved) ===
+6769 points, 280 images | objective: mean accuracy within 2, 2.5, 3, 4 mm | 2-fold CV over even/odd images
+
+strategy                              MRE    <2mm  <2.5mm    <3mm    <4mm mean acc   parameters (chosen on even images)
+-----------------------------------------------------------------------------------------------------------------------
+Stage 1 only                        0.874   91.7%   95.2%   97.5%   99.2%   95.92%   
+Stage 2 everywhere                  1.075   87.3%   91.8%   94.7%   97.6%   92.85%   
+threshold on sigma_tta              0.883   91.7%   95.1%   97.3%   99.0%   95.78%   sigma_tta > 1.09 mm
+fusion (weighted average)           0.873   91.7%   95.1%   97.4%   99.1%   95.85%   c=2.00 p=4 floor=0.4 mm
+classifier                          0.874   91.9%   95.3%   97.4%   99.1%   95.94%   switch if p > 0.50
+Stage 2 everywhere + S2 TTA         1.068   87.6%   91.8%   94.8%   97.6%   92.94%   
+threshold on sigma_tta + S2 TTA     0.883   91.7%   95.1%   97.3%   99.0%   95.79%   sigma_tta > 1.09 mm
+fusion (weighted average) + S2 TTA  0.873   91.7%   95.1%   97.4%   99.1%   95.86%   c=1.58 p=4 floor=0.4 mm
+classifier + S2 TTA                 0.877   91.9%   95.3%   97.4%   99.0%   95.90%   switch if p > 0.45
+-----------------------------------------------------------------------------------------------------------------------
+Ideal (best of the two)             0.735   94.0%   96.6%   98.2%   99.4%   97.05%   unreachable upper bound
+Ideal (best of the two) + S2 TTA    0.736   94.0%   96.6%   98.2%   99.4%   97.04%   unreachable upper bound
+Done — mer 21 ott 2026, 15.26.29, CEST
