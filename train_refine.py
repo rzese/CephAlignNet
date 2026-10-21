@@ -46,12 +46,12 @@ CONFIG = {
     "save_path":      "modello_refine.pth",
     "patience":       30,
     # ── crop and correction range ──
-    "finestra_mm":    38.4,    # side of the crop (+-19.2 mm: the true point stays well inside even at 11.5 mm)
-    "crop_px":        192,     # -> 0.2 mm per crop pixel
-    "max_offset_mm":  11.5,    # largest correction Stage 2 is trained for / allowed to apply
+    "finestra_mm":    25.6,    # side of the crop (+-12.5 mm: the true point stays well inside even at 11.5 mm)
+    "crop_px":        128,     # -> 0.2 mm per crop pixel
+    "max_offset_mm":  11.0,    # largest correction Stage 2 is trained for / allowed to apply
     # ── synthetic starting errors: distance uniform in [min, max], uniform direction ──
     "rumore_min_mm":  0.5,
-    "rumore_max_mm":  11.5,
+    "rumore_max_mm":  11.0,
     # ── augmentation ──
     "rotazione_max_gradi": 10.0,
     # ── loss ──
