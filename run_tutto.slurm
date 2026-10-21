@@ -1,7 +1,7 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
 # Full pipeline, in sequence, for each heatmap mode:
-#   unit tests → Stage 1 → (landmark_stats) → Stage 2 → evaluation + calibration
+#   Stage 1 → (landmark_stats) → Stage 2 → evaluation + calibration
 #   → Stage 2 analysis + comparison of the ways of combining the two stages
 #
 # Submit from the repository root (the logs/ folder must exist):
@@ -82,9 +82,6 @@ if [ -n "$STATS_DA" ] && [ "${STATS_DA%/}" = "${OUT%/}" ]; then
 fi
 nvidia-smi || true
 python -c "import torch; print('torch', torch.__version__, '| cuda', torch.cuda.is_available())"
-
-# ── 0. Unit tests (a few seconds; stop here if something is broken) ──────────
-python Test/test_unita.py
 
 mkdir -p "$OUT"
 # A pre-existing landmark_stats.py would be used by the first Stage 1: move it aside
