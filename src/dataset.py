@@ -73,7 +73,9 @@ class AarizDataset(Dataset):
             senior_dir = os.path.join(base_path, sp, 'Annotations', 'Cephalometric Landmarks', 'Senior Orthodontists')
             if not os.path.exists(img_dir):
                 continue
-            for f in os.listdir(img_dir):
+            # sorted: os.listdir order depends on the filesystem, and the
+            # train/validation split is built on this order (crea_split)
+            for f in sorted(os.listdir(img_dir)):
                 if f.endswith('.png') or f.endswith('.jpg') or f.endswith('.jpeg') or f.endswith('.bmp'):
                     ext   = os.path.splitext(f)[1]
                     fname = os.path.splitext(f)[0]

@@ -27,7 +27,7 @@ import torch.optim as optim
 import torchvision.transforms.functional as TF
 from torch.utils.data import DataLoader
 
-from src.datasets import Datasets, crea_split
+from src.datasets import Datasets, crea_split, impronta_split
 from src.heatmap_utils import nll_heatmap_loss, ruota_coordinate
 from src.inferenza import ritaglia_originali
 from src.model_refine import ImageRefinementNet
@@ -214,6 +214,7 @@ def main():
                 "finestra_mm": CONFIG["finestra_mm"],
                 "crop_px": CONFIG["crop_px"],
                 "max_offset_mm": CONFIG["max_offset_mm"],
+                "split_impronta": impronta_split(),
             }, CONFIG["save_path"])
             print(f"  → saved (val_loss: {val_loss:.4f})")
         else:

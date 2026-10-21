@@ -6,6 +6,7 @@ Datasets:
   - ISBIDataset            (Cepha400)
   - TracciatiDataset       (in-house tracings with coordinates)
 """
+import hashlib
 import torch
 import os
 import sys
@@ -166,6 +167,50 @@ class Datasets(Dataset):
         idx -= self.len_isbi
         return wrap_output(self.tracciati[idx], PIXEL_SIZE_TRACCIATI, source="TRACCIATI")
 
+# ── Fingerprint of the validation set ─────────────────────────────────────────
+# A short hash of the validation images (names, in order). Training scripts save
+# it in their checkpoints; loading a checkpoint and building the split both
+# register it here, and a mismatch prints a warning: the model would be
+# evaluated on images it was trained on (or on a different validation set).
+_IMPRONTE = {"split": None, "modelli": {}}
+
+
+def nomi_campioni(dataset, indici):
+    """'aariz/<split>/<file>' or 'isbi/<n>' of the given dataset indices."""
+    nomi = []
+    if not hasattr(dataset, "aariz"):          # stand-in datasets (tests): indices only
+        return [str(g) for g in indici]
+    for g in indici:
+        if g < dataset.len_aariz:
+            fname, split, ext = dataset.aariz.samples[g]
+            nomi.append(f"aariz/{split}/{fname}{ext}")
+        elif g < dataset.len_aariz + dataset.len_isbi:
+            nomi.append(f"isbi/{dataset.isbi.samples[g - dataset.len_aariz][0]:03d}")
+        else:
+            nomi.append(f"tracciati/{g}")
+    return nomi
+
+
+def impronta_split():
+    """Fingerprint of the last validation set built by crea_split (None before)."""
+    return _IMPRONTE["split"]
+
+
+def _controlla_impronte():
+    split = _IMPRONTE["split"]
+    for nome, imp in _IMPRONTE["modelli"].items():
+        if split and imp and imp != split:
+            print(f"[WARN] {nome} was trained with validation set {imp}, but this validation set is {split}: "
+                  f"the results are NOT valid (training images in the validation set). "
+                  f"Same data and code on both machines?")
+
+
+def registra_impronta_modello(nome, impronta):
+    """Called when a checkpoint is loaded (impronta = None for old checkpoints)."""
+    _IMPRONTE["modelli"][nome] = impronta
+    _controlla_impronte()
+
+
 def crea_split(dataset, val_split=0.2, seed=42):
     """
     Train/validation split used by every script (training, evaluation,
@@ -185,4 +230,7 @@ def crea_split(dataset, val_split=0.2, seed=42):
     perm  = torch.randperm(n_pub, generator=torch.Generator().manual_seed(seed)).tolist()
     train_idx = perm[:n_pub - n_val] + list(range(n_pub, len(dataset)))
     val_idx   = perm[n_pub - n_val:]
+    _IMPRONTE["split"] = hashlib.md5("\n".join(nomi_campioni(dataset, val_idx)).encode()).hexdigest()[:10]
+    print(f"[crea_split] validation: {len(val_idx)} images, fingerprint {_IMPRONTE['split']}")
+    _controlla_impronte()
     return Subset(dataset, train_idx), Subset(dataset, val_idx)

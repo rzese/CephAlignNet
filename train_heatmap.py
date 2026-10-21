@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from functools import partial
 
-from src.datasets import Datasets, crea_split
+from src.datasets import Datasets, crea_split, impronta_split
 from src.heatmap_utils import (coordinate_a_heatmap, augmenta, zoom_crop_augmenta, combined_loss,
                                wing_loss_coord, geometric_consistency_loss, heatmap_a_coordinate,
                                HEATMAP_TRAIN_SIZE, SIGMA_PER_LANDMARK)
@@ -242,6 +242,7 @@ def main():
                 "config":              CONFIG,
                 "model_name":          MODEL_NAME,
                 "backbone":            "hrnet_w48",
+                "split_impronta":      impronta_split(),
             }, CONFIG["save_path"])
             print(f"  → saved (val_loss: {val_loss:.6f})")
         else:

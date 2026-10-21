@@ -340,6 +340,45 @@ def test_fusione_stage1_stage2():
     assert spost_fuso[0, 0] < 0.05 * spost_pieno[0, 0] + 1e-7
 
 
+def test_ordine_aariz_e_impronta_validazione():
+    """The Aariz file list does not depend on the order the filesystem returns
+    the files in, and a checkpoint trained on another validation set is
+    reported when loaded together with this split."""
+    import io, contextlib
+    from src.dataset import AarizDataset
+    from src import datasets as ds
+    with tempfile.TemporaryDirectory() as base:
+        img_dir = os.path.join(base, "train", "Cephalograms")
+        ann_dir = os.path.join(base, "train", "Annotations", "Cephalometric Landmarks", "Senior Orthodontists")
+        os.makedirs(img_dir); os.makedirs(ann_dir)
+        for nome in ["c3", "a1", "b2", "e5", "d4"]:          # created out of order
+            open(os.path.join(img_dir, nome + ".png"), "w").close()
+            open(os.path.join(ann_dir, nome + ".json"), "w").close()
+        a = AarizDataset(base, split="train")
+    assert [s[0] for s in a.samples] == ["a1", "b2", "c3", "d4", "e5"]
+
+    class Finto:
+        def __init__(self, nomi):
+            self.aariz = type("A", (), {"samples": [(n, "train", ".png") for n in nomi]})()
+            self.isbi = type("I", (), {"samples": []})()
+            self.len_aariz, self.len_isbi, self.len_tracciati = len(nomi), 0, 0
+        def __len__(self):
+            return self.len_aariz
+    nomi = [f"img{k:03d}" for k in range(50)]
+    ds.crea_split(Finto(nomi), 0.2, 42); imp1 = ds.impronta_split()
+    ds.crea_split(Finto(nomi[::-1]), 0.2, 42); imp2 = ds.impronta_split()
+    assert imp1 != imp2
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        ds.registra_impronta_modello("Stage 1", imp1)
+    assert "NOT valid" in out.getvalue()
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        ds.registra_impronta_modello("Stage 1", imp2)
+    assert "NOT valid" not in out.getvalue()
+    ds._IMPRONTE["modelli"].clear()
+
+
 def test_crea_split_stabile_con_o_senza_tracciati():
     from torch.utils.data import random_split
     from src.datasets import crea_split

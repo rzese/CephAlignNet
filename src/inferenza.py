@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 from torchvision.ops import roi_align
 
+from src.datasets import registra_impronta_modello
 from src.model_hrnet import HRNetLandmark
 from src.model_refine import (RefinementNet, ImageRefinementNet, MAX_OFFSET, ROI_OUTPUT_SIZE,
                               ROI_HALF_SIZE, REFINE_LANDMARK_MASK)
@@ -88,7 +89,9 @@ def carica_stage1(config, device, congela=False):
         model.sigma_state  = ckpt.get("sigma_state_dict")
         print(f"Stage 1 loaded ({ckpt.get('backbone', 'hrnet_w?')}, channels={model.hrnet_channels}, "
               f"epoch={ckpt.get('epoca', '?')}, val_loss={ckpt.get('val_loss', 0):.6f}, "
-              f"heatmap_mode={model.heatmap_mode}, grid={model.griglia})")
+              f"heatmap_mode={model.heatmap_mode}, grid={model.griglia}, "
+              f"validation set {ckpt.get('split_impronta') or 'unknown (old checkpoint)'})")
+        registra_impronta_modello("Stage 1", ckpt.get("split_impronta"))
         return model
     raise RuntimeError("Could not load Stage 1.")
 
@@ -115,7 +118,9 @@ def carica_stage2(path, num_landmarks, device):
         stage2.eval()
         print(f"Stage 2 loaded (ImageRefinementNet on the original radiograph, window "
               f"{stage2.finestra_mm} mm / {stage2.crop_px} px, max offset {stage2.max_offset_mm} mm, "
-              f"epoch={ckpt.get('epoca', '?')}, val_loss={ckpt.get('val_loss', 0):.4f})")
+              f"epoch={ckpt.get('epoca', '?')}, val_loss={ckpt.get('val_loss', 0):.4f}, "
+              f"validation set {ckpt.get('split_impronta') or 'unknown (old checkpoint)'})")
+        registra_impronta_modello("Stage 2", ckpt.get("split_impronta"))
         return stage2
 
     in_channels = ckpt.get("in_channels", 240)
