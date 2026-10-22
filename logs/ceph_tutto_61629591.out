@@ -1,0 +1,732 @@
+Loading python/3.11.7
+  Loading requirement: bzip2/1.0.8-ib3znej libmd/1.0.4-2km2lxx
+    libbsd/0.12.1-oocs6an expat/2.6.2-p2t4wry ncurses/6.5-svfl57u
+    readline/8.2-zeda6mx gdbm/1.23-wiol7vk libiconv/1.17-nhc3mhm
+    xz/5.4.6-xxxg42c zlib-ng/2.1.6-jkgunjc libxml2/2.10.3-zbbe7lm
+    pigz/2.8-5bwzpml zstd/1.5.6-uq5yyux tar/1.34-jgektnv gettext/0.22.5-hsxgafg
+    libffi/3.4.6-4vs4jpp libxcrypt/4.4.35-7om46b5 sqlite/3.43.2-4kl5mnp
+    util-linux-uuid/2.38.1-5achpds
+NVIDIA A100-SXM-64GB, 535.274.02
+torch 2.14.1+cu126 | cuda True | NVIDIA A100-SXM-64GB
+Job 61629591 on lrdn0190.leonardo.local — mer 21 ott 2026, 15.57.50, CEST
+Modes: probabilistic | batch heatmap=16 refine=16 | epochs=CONFIG | output: esperimenti_leo
+Initial Stage 1 statistics: fallback values
+Wed Oct 21 15:57:51 2026       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 535.274.02             Driver Version: 535.274.02   CUDA Version: 12.2     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  NVIDIA A100-SXM-64GB           On  | 00000000:1D:00.0 Off |                    0 |
+| N/A   44C    P0              65W / 471W |      0MiB / 65536MiB |      0%      Default |
+|                                         |                      |             Disabled |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|  No running processes found                                                           |
++---------------------------------------------------------------------------------------+
+torch 2.14.1+cu126 | cuda True
+
+################################################################
+# heatmap_mode = probabilistic   →   esperimenti_leo/probabilistic   (mer 21 ott 2026, 15.57.53, CEST)
+################################################################
+=== [probabilistic] 1/4 Stage 1 training ===
+[WARN] src/landmark_stats.py non trovato — uso valori di fallback (esegui `python -m src.analiz_land` per generarli dai dati).
+[esegui_esperimento] step=heatmap dir=esperimenti_leo/probabilistic
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "tracciati_path": null,
+ "tracciati_tabella_scale": null,
+ "num_landmarks": 26,
+ "img_size": 512,
+ "heatmap_size": 256,
+ "sigma": 4.0,
+ "batch_size": 16,
+ "num_epochs": 600,
+ "learning_rate": 3e-05,
+ "val_split": 0.2,
+ "save_path": "esperimenti_leo/probabilistic/modello_heatmap.pth",
+ "patience": 60,
+ "geo_loss_weight": 0.05,
+ "heatmap_mode": "probabilistic",
+ "griglia": "centri",
+ "sigma_penalita": 0.1,
+ "lr_sigma": 0.001,
+ "sigma_min": 1.0,
+ "sigma_max": 12.0
+}
+Device: cuda | Model: HRNetLandmark (W48) | heatmap_mode: probabilistic
+batch_size=16 | LR=3.0e-05 | img_size=512 | heatmap_size=256
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] validation: 280 images, fingerprint 2e033d865b
+Unexpected keys (downsamp_modules.0.1.num_batches_tracked, downsamp_modules.1.1.num_batches_tracked, downsamp_modules.2.1.num_batches_tracked, final_layer.1.num_batches_tracked, downsamp_modules.0.0.bias, downsamp_modules.0.0.weight, downsamp_modules.0.1.bias, downsamp_modules.0.1.running_mean, downsamp_modules.0.1.running_var, downsamp_modules.0.1.weight, downsamp_modules.1.0.bias, downsamp_modules.1.0.weight, downsamp_modules.1.1.bias, downsamp_modules.1.1.running_mean, downsamp_modules.1.1.running_var, downsamp_modules.1.1.weight, downsamp_modules.2.0.bias, downsamp_modules.2.0.weight, downsamp_modules.2.1.bias, downsamp_modules.2.1.running_mean, downsamp_modules.2.1.running_var, downsamp_modules.2.1.weight, final_layer.0.bias, final_layer.0.weight, final_layer.1.bias, final_layer.1.running_mean, final_layer.1.running_var, final_layer.1.weight, classifier.bias, classifier.weight) found while loading pretrained weights. This may be expected if model is being adapted.
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Epoch   1/600 | Train: 1.039001 | Val: 0.901627 | LR: 3.00e-05
+  → saved (val_loss: 0.901627)
+Epoch   2/600 | Train: 0.848743 | Val: 0.723832 | LR: 3.00e-05
+  → saved (val_loss: 0.723832)
+Epoch   3/600 | Train: 0.744725 | Val: 0.569668 | LR: 3.00e-05
+  → saved (val_loss: 0.569668)
+Epoch   4/600 | Train: 0.657915 | Val: 0.487257 | LR: 3.00e-05
+  → saved (val_loss: 0.487257)
+Epoch   5/600 | Train: 0.604148 | Val: 0.432447 | LR: 3.00e-05
+  → saved (val_loss: 0.432447)
+Epoch   6/600 | Train: 0.561406 | Val: 0.424562 | LR: 3.00e-05
+  → saved (val_loss: 0.424562)
+Epoch   7/600 | Train: 0.521947 | Val: 0.357586 | LR: 3.00e-05
+  → saved (val_loss: 0.357586)
+Epoch   8/600 | Train: 0.492181 | Val: 0.321440 | LR: 3.00e-05
+  → saved (val_loss: 0.321440)
+Epoch   9/600 | Train: 0.468192 | Val: 0.300344 | LR: 3.00e-05
+  → saved (val_loss: 0.300344)
+Epoch  10/600 | Train: 0.444371 | Val: 0.297805 | LR: 3.00e-05
+  → saved (val_loss: 0.297805)
+Epoch  11/600 | Train: 0.428119 | Val: 0.344012 | LR: 3.00e-05
+Epoch  12/600 | Train: 0.406966 | Val: 0.331403 | LR: 3.00e-05
+Epoch  13/600 | Train: 0.394073 | Val: 0.260011 | LR: 3.00e-05
+  → saved (val_loss: 0.260011)
+Epoch  14/600 | Train: 0.375157 | Val: 0.309827 | LR: 3.00e-05
+Epoch  15/600 | Train: 0.365914 | Val: 0.247435 | LR: 3.00e-05
+  → saved (val_loss: 0.247435)
+Epoch  16/600 | Train: 0.369405 | Val: 0.233405 | LR: 3.00e-05
+  → saved (val_loss: 0.233405)
+Epoch  17/600 | Train: 0.359035 | Val: 0.219607 | LR: 3.00e-05
+  → saved (val_loss: 0.219607)
+Epoch  18/600 | Train: 0.353375 | Val: 0.219047 | LR: 3.00e-05
+  → saved (val_loss: 0.219047)
+Epoch  19/600 | Train: 0.337358 | Val: 0.253639 | LR: 3.00e-05
+Epoch  20/600 | Train: 0.338577 | Val: 0.216525 | LR: 3.00e-05
+  → saved (val_loss: 0.216525)
+Epoch  21/600 | Train: 0.330776 | Val: 0.224019 | LR: 3.00e-05
+Epoch  22/600 | Train: 0.321465 | Val: 0.207987 | LR: 3.00e-05
+  → saved (val_loss: 0.207987)
+Epoch  23/600 | Train: 0.319284 | Val: 0.241497 | LR: 3.00e-05
+Epoch  24/600 | Train: 0.318653 | Val: 0.208874 | LR: 3.00e-05
+Epoch  25/600 | Train: 0.318208 | Val: 0.219161 | LR: 3.00e-05
+Epoch  26/600 | Train: 0.323766 | Val: 0.205299 | LR: 3.00e-05
+  → saved (val_loss: 0.205299)
+Epoch  27/600 | Train: 0.307668 | Val: 0.218027 | LR: 3.00e-05
+Epoch  28/600 | Train: 0.307642 | Val: 0.200703 | LR: 3.00e-05
+  → saved (val_loss: 0.200703)
+Epoch  29/600 | Train: 0.300250 | Val: 0.191878 | LR: 3.00e-05
+  → saved (val_loss: 0.191878)
+Epoch  30/600 | Train: 0.300165 | Val: 0.192519 | LR: 3.00e-05
+Epoch  31/600 | Train: 0.298596 | Val: 0.194149 | LR: 3.00e-05
+Epoch  32/600 | Train: 0.292501 | Val: 0.201453 | LR: 3.00e-05
+Epoch  33/600 | Train: 0.297549 | Val: 0.198077 | LR: 3.00e-05
+Epoch  34/600 | Train: 0.292439 | Val: 0.196656 | LR: 3.00e-05
+Epoch  35/600 | Train: 0.286078 | Val: 0.187229 | LR: 3.00e-05
+  → saved (val_loss: 0.187229)
+Epoch  36/600 | Train: 0.286824 | Val: 0.189619 | LR: 3.00e-05
+Epoch  37/600 | Train: 0.289150 | Val: 0.191910 | LR: 3.00e-05
+Epoch  38/600 | Train: 0.288262 | Val: 0.196018 | LR: 3.00e-05
+Epoch  39/600 | Train: 0.281304 | Val: 0.184976 | LR: 3.00e-05
+  → saved (val_loss: 0.184976)
+Epoch  40/600 | Train: 0.285174 | Val: 0.183141 | LR: 3.00e-05
+  → saved (val_loss: 0.183141)
+Epoch  41/600 | Train: 0.280866 | Val: 0.184091 | LR: 3.00e-05
+Epoch  42/600 | Train: 0.277805 | Val: 0.182402 | LR: 3.00e-05
+  → saved (val_loss: 0.182402)
+Epoch  43/600 | Train: 0.272655 | Val: 0.197637 | LR: 3.00e-05
+Epoch  44/600 | Train: 0.281231 | Val: 0.197316 | LR: 3.00e-05
+Epoch  45/600 | Train: 0.278213 | Val: 0.191113 | LR: 3.00e-05
+Epoch  46/600 | Train: 0.268842 | Val: 0.190877 | LR: 3.00e-05
+Epoch  47/600 | Train: 0.269218 | Val: 0.205092 | LR: 3.00e-05
+Epoch  48/600 | Train: 0.267811 | Val: 0.219707 | LR: 3.00e-05
+Epoch  49/600 | Train: 0.266880 | Val: 0.199687 | LR: 3.00e-05
+Epoch  50/600 | Train: 0.270878 | Val: 0.209911 | LR: 3.00e-05
+Epoch  51/600 | Train: 0.270118 | Val: 0.203796 | LR: 3.00e-05
+Epoch  52/600 | Train: 0.270268 | Val: 0.183425 | LR: 3.00e-05
+Epoch  53/600 | Train: 0.272081 | Val: 0.180071 | LR: 3.00e-05
+  → saved (val_loss: 0.180071)
+Epoch  54/600 | Train: 0.258965 | Val: 0.187650 | LR: 3.00e-05
+Epoch  55/600 | Train: 0.268133 | Val: 0.193698 | LR: 3.00e-05
+Epoch  56/600 | Train: 0.258135 | Val: 0.221122 | LR: 3.00e-05
+Epoch  57/600 | Train: 0.259002 | Val: 0.186627 | LR: 3.00e-05
+Epoch  58/600 | Train: 0.253937 | Val: 0.191926 | LR: 3.00e-05
+Epoch  59/600 | Train: 0.254554 | Val: 0.175970 | LR: 3.00e-05
+  → saved (val_loss: 0.175970)
+Epoch  60/600 | Train: 0.256134 | Val: 0.173874 | LR: 3.00e-05
+  → saved (val_loss: 0.173874)
+Epoch  61/600 | Train: 0.260580 | Val: 0.183815 | LR: 3.00e-05
+Epoch  62/600 | Train: 0.260342 | Val: 0.191056 | LR: 3.00e-05
+Epoch  63/600 | Train: 0.256986 | Val: 0.192993 | LR: 3.00e-05
+Epoch  64/600 | Train: 0.253251 | Val: 0.175280 | LR: 3.00e-05
+Epoch  65/600 | Train: 0.261835 | Val: 0.171671 | LR: 3.00e-05
+  → saved (val_loss: 0.171671)
+Epoch  66/600 | Train: 0.256039 | Val: 0.170474 | LR: 3.00e-05
+  → saved (val_loss: 0.170474)
+Epoch  67/600 | Train: 0.257268 | Val: 0.205788 | LR: 3.00e-05
+Epoch  68/600 | Train: 0.255950 | Val: 0.171554 | LR: 3.00e-05
+Epoch  69/600 | Train: 0.247708 | Val: 0.175802 | LR: 3.00e-05
+Epoch  70/600 | Train: 0.252049 | Val: 0.174351 | LR: 3.00e-05
+Epoch  71/600 | Train: 0.260511 | Val: 0.171632 | LR: 3.00e-05
+Epoch  72/600 | Train: 0.254603 | Val: 0.171619 | LR: 3.00e-05
+Epoch  73/600 | Train: 0.252442 | Val: 0.179493 | LR: 3.00e-05
+Epoch  74/600 | Train: 0.248405 | Val: 0.182019 | LR: 3.00e-05
+Epoch  75/600 | Train: 0.244265 | Val: 0.182131 | LR: 3.00e-05
+Epoch  76/600 | Train: 0.250927 | Val: 0.178284 | LR: 3.00e-05
+Epoch  77/600 | Train: 0.250786 | Val: 0.170050 | LR: 3.00e-05
+  → saved (val_loss: 0.170050)
+Epoch  78/600 | Train: 0.243453 | Val: 0.190696 | LR: 3.00e-05
+Epoch  79/600 | Train: 0.247145 | Val: 0.199667 | LR: 3.00e-05
+Epoch  80/600 | Train: 0.243623 | Val: 0.187863 | LR: 3.00e-05
+Epoch  81/600 | Train: 0.234191 | Val: 0.178401 | LR: 3.00e-05
+Epoch  82/600 | Train: 0.240618 | Val: 0.174234 | LR: 3.00e-05
+Epoch  83/600 | Train: 0.250296 | Val: 0.167895 | LR: 3.00e-05
+  → saved (val_loss: 0.167895)
+Epoch  84/600 | Train: 0.248185 | Val: 0.168609 | LR: 3.00e-05
+Epoch  85/600 | Train: 0.244178 | Val: 0.167840 | LR: 3.00e-05
+  → saved (val_loss: 0.167840)
+Epoch  86/600 | Train: 0.242772 | Val: 0.190531 | LR: 3.00e-05
+Epoch  87/600 | Train: 0.238695 | Val: 0.167827 | LR: 3.00e-05
+  → saved (val_loss: 0.167827)
+Epoch  88/600 | Train: 0.235920 | Val: 0.168748 | LR: 3.00e-05
+Epoch  89/600 | Train: 0.248244 | Val: 0.175909 | LR: 3.00e-05
+Epoch  90/600 | Train: 0.238386 | Val: 0.170446 | LR: 3.00e-05
+Epoch  91/600 | Train: 0.238334 | Val: 0.166676 | LR: 3.00e-05
+  → saved (val_loss: 0.166676)
+Epoch  92/600 | Train: 0.243289 | Val: 0.167267 | LR: 3.00e-05
+Epoch  93/600 | Train: 0.244673 | Val: 0.181353 | LR: 3.00e-05
+Epoch  94/600 | Train: 0.247139 | Val: 0.171238 | LR: 3.00e-05
+Epoch  95/600 | Train: 0.237228 | Val: 0.166186 | LR: 3.00e-05
+  → saved (val_loss: 0.166186)
+Epoch  96/600 | Train: 0.241836 | Val: 0.165342 | LR: 3.00e-05
+  → saved (val_loss: 0.165342)
+Epoch  97/600 | Train: 0.243372 | Val: 0.164363 | LR: 3.00e-05
+  → saved (val_loss: 0.164363)
+Epoch  98/600 | Train: 0.234942 | Val: 0.168676 | LR: 3.00e-05
+Epoch  99/600 | Train: 0.234313 | Val: 0.182597 | LR: 3.00e-05
+Epoch 100/600 | Train: 0.246020 | Val: 0.215089 | LR: 3.00e-05
+Epoch 101/600 | Train: 0.235370 | Val: 0.170969 | LR: 3.00e-05
+Epoch 102/600 | Train: 0.230663 | Val: 0.202092 | LR: 3.00e-05
+Epoch 103/600 | Train: 0.234949 | Val: 0.166682 | LR: 3.00e-05
+Epoch 104/600 | Train: 0.233015 | Val: 0.166561 | LR: 3.00e-05
+Epoch 105/600 | Train: 0.234849 | Val: 0.172970 | LR: 3.00e-05
+Epoch 106/600 | Train: 0.236999 | Val: 0.171011 | LR: 3.00e-05
+Epoch 107/600 | Train: 0.233000 | Val: 0.189577 | LR: 3.00e-05
+Epoch 108/600 | Train: 0.237697 | Val: 0.169831 | LR: 3.00e-05
+Epoch 109/600 | Train: 0.234275 | Val: 0.170525 | LR: 3.00e-05
+Epoch 110/600 | Train: 0.240288 | Val: 0.171322 | LR: 3.00e-05
+Epoch 111/600 | Train: 0.233879 | Val: 0.169730 | LR: 3.00e-05
+Epoch 112/600 | Train: 0.236185 | Val: 0.164841 | LR: 3.00e-05
+Epoch 113/600 | Train: 0.227487 | Val: 0.171411 | LR: 3.00e-05
+Epoch 114/600 | Train: 0.231168 | Val: 0.187549 | LR: 3.00e-05
+Epoch 115/600 | Train: 0.227941 | Val: 0.165305 | LR: 3.00e-05
+Epoch 116/600 | Train: 0.230745 | Val: 0.174418 | LR: 3.00e-05
+Epoch 117/600 | Train: 0.229578 | Val: 0.166194 | LR: 3.00e-05
+Epoch 118/600 | Train: 0.229336 | Val: 0.176536 | LR: 1.50e-05
+Epoch 119/600 | Train: 0.224314 | Val: 0.174757 | LR: 1.50e-05
+Epoch 120/600 | Train: 0.217393 | Val: 0.164818 | LR: 1.50e-05
+Epoch 121/600 | Train: 0.221232 | Val: 0.169567 | LR: 1.50e-05
+Epoch 122/600 | Train: 0.219692 | Val: 0.161942 | LR: 1.50e-05
+  → saved (val_loss: 0.161942)
+Epoch 123/600 | Train: 0.225852 | Val: 0.162323 | LR: 1.50e-05
+Epoch 124/600 | Train: 0.220025 | Val: 0.164364 | LR: 1.50e-05
+Epoch 125/600 | Train: 0.222329 | Val: 0.161080 | LR: 1.50e-05
+  → saved (val_loss: 0.161080)
+Epoch 126/600 | Train: 0.220252 | Val: 0.176820 | LR: 1.50e-05
+Epoch 127/600 | Train: 0.218630 | Val: 0.167979 | LR: 1.50e-05
+Epoch 128/600 | Train: 0.215735 | Val: 0.167074 | LR: 1.50e-05
+Epoch 129/600 | Train: 0.216985 | Val: 0.163206 | LR: 1.50e-05
+Epoch 130/600 | Train: 0.222121 | Val: 0.166058 | LR: 1.50e-05
+Epoch 131/600 | Train: 0.218369 | Val: 0.181692 | LR: 1.50e-05
+Epoch 132/600 | Train: 0.217531 | Val: 0.161818 | LR: 1.50e-05
+Epoch 133/600 | Train: 0.218068 | Val: 0.162149 | LR: 1.50e-05
+Epoch 134/600 | Train: 0.218633 | Val: 0.168334 | LR: 1.50e-05
+Epoch 135/600 | Train: 0.218237 | Val: 0.166123 | LR: 1.50e-05
+Epoch 136/600 | Train: 0.215696 | Val: 0.166418 | LR: 1.50e-05
+Epoch 137/600 | Train: 0.214641 | Val: 0.162226 | LR: 1.50e-05
+Epoch 138/600 | Train: 0.217677 | Val: 0.167830 | LR: 1.50e-05
+Epoch 139/600 | Train: 0.217748 | Val: 0.165316 | LR: 1.50e-05
+Epoch 140/600 | Train: 0.215886 | Val: 0.164154 | LR: 1.50e-05
+Epoch 141/600 | Train: 0.214457 | Val: 0.163684 | LR: 1.50e-05
+Epoch 142/600 | Train: 0.213643 | Val: 0.176576 | LR: 1.50e-05
+Epoch 143/600 | Train: 0.215832 | Val: 0.169251 | LR: 1.50e-05
+Epoch 144/600 | Train: 0.213601 | Val: 0.162465 | LR: 1.50e-05
+Epoch 145/600 | Train: 0.214618 | Val: 0.174219 | LR: 1.50e-05
+Epoch 146/600 | Train: 0.214307 | Val: 0.188266 | LR: 7.50e-06
+Epoch 147/600 | Train: 0.209275 | Val: 0.167056 | LR: 7.50e-06
+Epoch 148/600 | Train: 0.210668 | Val: 0.162663 | LR: 7.50e-06
+Epoch 149/600 | Train: 0.206987 | Val: 0.178544 | LR: 7.50e-06
+Epoch 150/600 | Train: 0.207948 | Val: 0.169021 | LR: 7.50e-06
+Epoch 151/600 | Train: 0.208455 | Val: 0.166479 | LR: 7.50e-06
+Epoch 152/600 | Train: 0.209634 | Val: 0.170124 | LR: 7.50e-06
+Epoch 153/600 | Train: 0.211880 | Val: 0.164667 | LR: 7.50e-06
+Epoch 154/600 | Train: 0.209868 | Val: 0.164145 | LR: 7.50e-06
+Epoch 155/600 | Train: 0.206804 | Val: 0.167108 | LR: 7.50e-06
+Epoch 156/600 | Train: 0.209483 | Val: 0.162860 | LR: 7.50e-06
+Epoch 157/600 | Train: 0.209753 | Val: 0.164519 | LR: 7.50e-06
+Epoch 158/600 | Train: 0.210864 | Val: 0.164205 | LR: 7.50e-06
+Epoch 159/600 | Train: 0.209763 | Val: 0.161836 | LR: 7.50e-06
+Epoch 160/600 | Train: 0.208209 | Val: 0.167482 | LR: 7.50e-06
+Epoch 161/600 | Train: 0.208095 | Val: 0.170090 | LR: 7.50e-06
+Epoch 162/600 | Train: 0.205341 | Val: 0.164714 | LR: 7.50e-06
+Epoch 163/600 | Train: 0.203383 | Val: 0.168520 | LR: 7.50e-06
+Epoch 164/600 | Train: 0.205977 | Val: 0.165031 | LR: 7.50e-06
+Epoch 165/600 | Train: 0.212056 | Val: 0.165000 | LR: 7.50e-06
+Epoch 166/600 | Train: 0.203915 | Val: 0.161972 | LR: 7.50e-06
+Epoch 167/600 | Train: 0.204004 | Val: 0.163055 | LR: 3.75e-06
+Epoch 168/600 | Train: 0.207287 | Val: 0.165352 | LR: 3.75e-06
+Epoch 169/600 | Train: 0.204865 | Val: 0.163625 | LR: 3.75e-06
+Epoch 170/600 | Train: 0.203891 | Val: 0.164436 | LR: 3.75e-06
+Epoch 171/600 | Train: 0.203939 | Val: 0.165923 | LR: 3.75e-06
+Epoch 172/600 | Train: 0.202423 | Val: 0.163642 | LR: 3.75e-06
+Epoch 173/600 | Train: 0.204532 | Val: 0.161922 | LR: 3.75e-06
+Epoch 174/600 | Train: 0.205174 | Val: 0.165849 | LR: 3.75e-06
+Epoch 175/600 | Train: 0.201047 | Val: 0.163418 | LR: 3.75e-06
+Epoch 176/600 | Train: 0.201785 | Val: 0.164475 | LR: 3.75e-06
+Epoch 177/600 | Train: 0.202084 | Val: 0.163061 | LR: 3.75e-06
+Epoch 178/600 | Train: 0.206440 | Val: 0.166299 | LR: 3.75e-06
+Epoch 179/600 | Train: 0.203124 | Val: 0.164914 | LR: 3.75e-06
+Epoch 180/600 | Train: 0.203463 | Val: 0.163026 | LR: 3.75e-06
+Epoch 181/600 | Train: 0.199300 | Val: 0.163703 | LR: 3.75e-06
+Epoch 182/600 | Train: 0.204826 | Val: 0.165815 | LR: 3.75e-06
+Epoch 183/600 | Train: 0.200537 | Val: 0.164426 | LR: 3.75e-06
+Epoch 184/600 | Train: 0.201773 | Val: 0.165315 | LR: 3.75e-06
+Epoch 185/600 | Train: 0.203305 | Val: 0.164158 | LR: 3.75e-06
+Early stopping at epoch 185
+[WARN] src/landmark_stats.py not found — using fallback REFINE_LANDMARK_MASK (run `python -m src.analiz_land` to generate it from the data).
+
+Automatically generating src/landmark_stats.py from the best checkpoint...
+Backbone: HRNet-W48 | Detected channels: [192, 384, 768, 1536]
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=125, val_loss=0.161080, heatmap_mode=probabilistic, grid=centri, validation set 2e033d865b)
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] validation: 280 images, fingerprint 2e033d865b
+Evaluating Stage 1 (no TTA, no Stage 2) on the validation set...
+Wrote src/landmark_stats.py
+Landmarks routed to Stage 2 (4/26): [9, 12, 14, 15]
+=== [probabilistic] 2/4 Stage 2 training ===
+[esegui_esperimento] step=refine dir=esperimenti_leo/probabilistic
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "tracciati_path": null,
+ "tracciati_tabella_scale": null,
+ "num_landmarks": 26,
+ "batch_size": 16,
+ "num_workers": 4,
+ "num_epochs": 200,
+ "learning_rate": 0.001,
+ "val_split": 0.2,
+ "save_path": "esperimenti_leo/probabilistic/modello_refine.pth",
+ "patience": 30,
+ "finestra_mm": 25.6,
+ "crop_px": 128,
+ "max_offset_mm": 11.0,
+ "rumore_min_mm": 0.5,
+ "rumore_max_mm": 11.0,
+ "rotazione_max_gradi": 10.0,
+ "peso_nll": 1.0,
+ "stage1_path": "esperimenti_leo/probabilistic/modello_heatmap.pth"
+}
+Device: cuda
+Stage 2 on the original radiograph: window 25.6 mm (0.20 mm/px), max offset 11.0 mm, synthetic error distance uniform in [0.5, 11.0] mm
+[WARN] rumore_max_mm is close to the crop border: enlarge finestra_mm
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] validation: 280 images, fingerprint 2e033d865b
+Epoch   1/200 | Train: 1.9923 | Val: 1.3769 | LR: 1.00e-03 | val error 5.73 -> 1.94 mm (median 5.72 -> 1.34) | improved 88.6%
+  → saved (val_loss: 1.3769)
+Epoch   2/200 | Train: 1.2055 | Val: 1.0505 | LR: 1.00e-03 | val error 5.73 -> 1.46 mm (median 5.72 -> 1.02) | improved 91.7%
+  → saved (val_loss: 1.0505)
+Epoch   3/200 | Train: 1.0448 | Val: 0.9848 | LR: 1.00e-03 | val error 5.73 -> 1.37 mm (median 5.72 -> 0.96) | improved 92.1%
+  → saved (val_loss: 0.9848)
+Epoch   4/200 | Train: 0.9748 | Val: 0.9465 | LR: 1.00e-03 | val error 5.73 -> 1.31 mm (median 5.72 -> 0.90) | improved 92.7%
+  → saved (val_loss: 0.9465)
+Epoch   5/200 | Train: 0.9233 | Val: 0.8814 | LR: 1.00e-03 | val error 5.73 -> 1.22 mm (median 5.72 -> 0.81) | improved 93.1%
+  → saved (val_loss: 0.8814)
+Epoch   6/200 | Train: 0.8877 | Val: 0.8894 | LR: 1.00e-03 | val error 5.73 -> 1.24 mm (median 5.72 -> 0.83) | improved 92.7%
+Epoch   7/200 | Train: 0.8705 | Val: 0.8452 | LR: 1.00e-03 | val error 5.73 -> 1.17 mm (median 5.72 -> 0.79) | improved 93.5%
+  → saved (val_loss: 0.8452)
+Epoch   8/200 | Train: 0.8447 | Val: 0.8298 | LR: 1.00e-03 | val error 5.73 -> 1.14 mm (median 5.72 -> 0.78) | improved 93.5%
+  → saved (val_loss: 0.8298)
+Epoch   9/200 | Train: 0.8175 | Val: 0.8187 | LR: 1.00e-03 | val error 5.73 -> 1.13 mm (median 5.72 -> 0.78) | improved 93.9%
+  → saved (val_loss: 0.8187)
+Epoch  10/200 | Train: 0.8097 | Val: 0.8485 | LR: 1.00e-03 | val error 5.73 -> 1.18 mm (median 5.72 -> 0.80) | improved 93.7%
+Epoch  11/200 | Train: 0.7969 | Val: 0.8122 | LR: 1.00e-03 | val error 5.73 -> 1.12 mm (median 5.72 -> 0.77) | improved 93.9%
+  → saved (val_loss: 0.8122)
+Epoch  12/200 | Train: 0.7751 | Val: 0.8132 | LR: 1.00e-03 | val error 5.73 -> 1.12 mm (median 5.72 -> 0.77) | improved 93.9%
+Epoch  13/200 | Train: 0.7644 | Val: 0.8064 | LR: 1.00e-03 | val error 5.73 -> 1.11 mm (median 5.72 -> 0.75) | improved 94.1%
+  → saved (val_loss: 0.8064)
+Epoch  14/200 | Train: 0.7624 | Val: 0.7947 | LR: 1.00e-03 | val error 5.73 -> 1.09 mm (median 5.72 -> 0.74) | improved 94.1%
+  → saved (val_loss: 0.7947)
+Epoch  15/200 | Train: 0.7455 | Val: 0.8052 | LR: 1.00e-03 | val error 5.73 -> 1.10 mm (median 5.72 -> 0.75) | improved 93.9%
+Epoch  16/200 | Train: 0.7358 | Val: 0.8123 | LR: 1.00e-03 | val error 5.73 -> 1.11 mm (median 5.72 -> 0.75) | improved 93.6%
+Epoch  17/200 | Train: 0.7272 | Val: 0.8032 | LR: 1.00e-03 | val error 5.73 -> 1.10 mm (median 5.72 -> 0.74) | improved 93.9%
+Epoch  18/200 | Train: 0.7176 | Val: 0.8101 | LR: 1.00e-03 | val error 5.73 -> 1.11 mm (median 5.72 -> 0.75) | improved 93.8%
+Epoch  19/200 | Train: 0.7010 | Val: 0.7859 | LR: 1.00e-03 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.73) | improved 94.0%
+  → saved (val_loss: 0.7859)
+Epoch  20/200 | Train: 0.6987 | Val: 0.7992 | LR: 1.00e-03 | val error 5.73 -> 1.09 mm (median 5.72 -> 0.75) | improved 94.0%
+Epoch  21/200 | Train: 0.6859 | Val: 0.8119 | LR: 1.00e-03 | val error 5.73 -> 1.10 mm (median 5.72 -> 0.74) | improved 93.8%
+Epoch  22/200 | Train: 0.6814 | Val: 0.7868 | LR: 1.00e-03 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 94.1%
+Epoch  23/200 | Train: 0.6770 | Val: 0.7948 | LR: 1.00e-03 | val error 5.73 -> 1.08 mm (median 5.72 -> 0.73) | improved 94.1%
+Epoch  24/200 | Train: 0.6647 | Val: 0.8117 | LR: 1.00e-03 | val error 5.73 -> 1.10 mm (median 5.72 -> 0.74) | improved 93.5%
+Epoch  25/200 | Train: 0.6604 | Val: 0.7976 | LR: 1.00e-03 | val error 5.73 -> 1.08 mm (median 5.72 -> 0.73) | improved 94.1%
+Epoch  26/200 | Train: 0.6558 | Val: 0.7941 | LR: 1.00e-03 | val error 5.73 -> 1.08 mm (median 5.72 -> 0.73) | improved 93.8%
+Epoch  27/200 | Train: 0.6452 | Val: 0.7904 | LR: 1.00e-03 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.74) | improved 94.2%
+Epoch  28/200 | Train: 0.6349 | Val: 0.7909 | LR: 5.00e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.9%
+Epoch  29/200 | Train: 0.5986 | Val: 0.7829 | LR: 5.00e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.71) | improved 94.1%
+  → saved (val_loss: 0.7829)
+Epoch  30/200 | Train: 0.5835 | Val: 0.7858 | LR: 5.00e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.72) | improved 94.1%
+Epoch  31/200 | Train: 0.5795 | Val: 0.7909 | LR: 5.00e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.72) | improved 94.2%
+Epoch  32/200 | Train: 0.5654 | Val: 0.7983 | LR: 5.00e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.9%
+Epoch  33/200 | Train: 0.5614 | Val: 0.7925 | LR: 5.00e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.71) | improved 93.9%
+Epoch  34/200 | Train: 0.5576 | Val: 0.7900 | LR: 5.00e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.72) | improved 93.9%
+Epoch  35/200 | Train: 0.5462 | Val: 0.7964 | LR: 5.00e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.71) | improved 93.6%
+Epoch  36/200 | Train: 0.5454 | Val: 0.7932 | LR: 5.00e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.72) | improved 93.8%
+Epoch  37/200 | Train: 0.5385 | Val: 0.7992 | LR: 5.00e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.73) | improved 93.8%
+Epoch  38/200 | Train: 0.5296 | Val: 0.8034 | LR: 2.50e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.71) | improved 93.8%
+Epoch  39/200 | Train: 0.5124 | Val: 0.7975 | LR: 2.50e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.71) | improved 93.9%
+Epoch  40/200 | Train: 0.4954 | Val: 0.7950 | LR: 2.50e-04 | val error 5.73 -> 1.05 mm (median 5.72 -> 0.71) | improved 94.2%
+Epoch  41/200 | Train: 0.4944 | Val: 0.7998 | LR: 2.50e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.72) | improved 93.9%
+Epoch  42/200 | Train: 0.4915 | Val: 0.8041 | LR: 2.50e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.71) | improved 93.9%
+Epoch  43/200 | Train: 0.4891 | Val: 0.8026 | LR: 2.50e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.71) | improved 93.7%
+Epoch  44/200 | Train: 0.4804 | Val: 0.8050 | LR: 2.50e-04 | val error 5.73 -> 1.06 mm (median 5.72 -> 0.72) | improved 93.7%
+Epoch  45/200 | Train: 0.4847 | Val: 0.8127 | LR: 2.50e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.6%
+Epoch  46/200 | Train: 0.4769 | Val: 0.8144 | LR: 2.50e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.7%
+Epoch  47/200 | Train: 0.4754 | Val: 0.8123 | LR: 1.25e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.4%
+Epoch  48/200 | Train: 0.4670 | Val: 0.8109 | LR: 1.25e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.7%
+Epoch  49/200 | Train: 0.4547 | Val: 0.8124 | LR: 1.25e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.7%
+Epoch  50/200 | Train: 0.4581 | Val: 0.8140 | LR: 1.25e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.8%
+Epoch  51/200 | Train: 0.4493 | Val: 0.8183 | LR: 1.25e-04 | val error 5.73 -> 1.08 mm (median 5.72 -> 0.73) | improved 93.7%
+Epoch  52/200 | Train: 0.4484 | Val: 0.8177 | LR: 1.25e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.8%
+Epoch  53/200 | Train: 0.4504 | Val: 0.8198 | LR: 1.25e-04 | val error 5.73 -> 1.08 mm (median 5.72 -> 0.72) | improved 93.6%
+Epoch  54/200 | Train: 0.4479 | Val: 0.8204 | LR: 1.25e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.71) | improved 93.7%
+Epoch  55/200 | Train: 0.4372 | Val: 0.8165 | LR: 1.25e-04 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.7%
+Epoch  56/200 | Train: 0.4423 | Val: 0.8176 | LR: 6.25e-05 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.71) | improved 93.6%
+Epoch  57/200 | Train: 0.4392 | Val: 0.8202 | LR: 6.25e-05 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.71) | improved 93.6%
+Epoch  58/200 | Train: 0.4307 | Val: 0.8208 | LR: 6.25e-05 | val error 5.73 -> 1.07 mm (median 5.72 -> 0.72) | improved 93.6%
+Epoch  59/200 | Train: 0.4323 | Val: 0.8215 | LR: 6.25e-05 | val error 5.73 -> 1.08 mm (median 5.72 -> 0.72) | improved 93.5%
+Early stopping at epoch 59
+=== [probabilistic] 3/4 Evaluation + uncertainty calibration ===
+[esegui_esperimento] step=evaluate dir=esperimenti_leo/probabilistic
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "num_landmarks": 26,
+ "batch_size": 2,
+ "val_split": 0.2,
+ "img_size": 512,
+ "heatmap_size": 256,
+ "stage1_path": "esperimenti_leo/probabilistic/modello_heatmap.pth",
+ "stage2_path": "esperimenti_leo/probabilistic/modello_refine.pth",
+ "sdr_thresholds_mm": [
+  2.0,
+  2.5,
+  3.0,
+  4.0
+ ],
+ "hrnet_channels": [
+  192,
+  384,
+  768,
+  1536
+ ],
+ "usa_tta": true,
+ "tta_angoli": [
+  -5.0,
+  -2.5,
+  0.0,
+  2.5,
+  5.0
+ ],
+ "selezione_stage2": "fusione",
+ "fusione_stage2": {
+  "c": 0.32,
+  "p": 2.0,
+  "floor_mm": 0.0
+ },
+ "soglia_sigma_tta_mm": 0.25,
+ "analizza_incertezza": true,
+ "copertura": 0.9,
+ "calibrazione_path": "esperimenti_leo/probabilistic/calibrazione_incertezza.json"
+}
+Device: cuda
+TTA: [-5.0, -2.5, 0.0, 2.5, 5.0] + flip + photometric
+Backbone: HRNet-W48 | Detected channels: [192, 384, 768, 1536]
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=125, val_loss=0.161080, heatmap_mode=probabilistic, grid=centri, validation set 2e033d865b)
+Stage 2 loaded (ImageRefinementNet on the original radiograph, window 25.6 mm / 128 px, max offset 11.0 mm, epoch=29, val_loss=0.7829, validation set 2e033d865b)
+Stage 2 mode: fusione (weighted average of Stage 1 and Stage 2, {'c': 0.32, 'p': 2.0, 'floor_mm': 0.0})
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] validation: 280 images, fingerprint 2e033d865b
+
+=======================================================
+STAGE 1 — heatmap only
+=======================================================
+Global MRE: 1.04 mm
+MRE skeletal    : 1.13 mm  (A,ANS,B,Me,N,Or,Pog,PNS,R,S,Ar,Co,Gn,Go,Po)
+MRE dental      : 1.02 mm  (LPM,LIT,LMT,UIT,UIA,LIA)
+MRE soft tissue : 0.91 mm  (Pn,Ls,Li,Pog`,Sn)
+
+SDR per threshold (mm):
+  within 2.0mm: 87.6%
+  within 2.5mm: 92.3%
+  within 3.0mm: 94.8%
+  within 4.0mm: 97.6%
+
+Landmark Cat              MRE  SDR2  SDR2.5  SDR3  SDR4
+--------------------------------------------------------------------
+  A     [skeletal    ]   1.01mm    90.0%    95.4%    97.9%    99.3%
+  ANS   [skeletal    ]   1.19mm    85.4%    92.9%    94.3%    97.9%
+  B     [skeletal    ]   0.99mm    87.9%    95.7%    98.2%    98.9%
+  Me    [skeletal    ]   0.55mm    97.5%    99.3%    99.6%   100.0%
+  N     [skeletal    ]   0.77mm    93.6%    97.9%    98.9%    99.6%
+  Or    [skeletal    ]   1.27mm    84.6%    90.7%    94.3%    96.1%
+  Pog   [skeletal    ]   0.68mm    96.4%    98.2%    99.3%    99.6%
+  PNS   [skeletal    ]   1.35mm    82.1%    88.2%    92.1%    95.4%
+  Pn    [soft tissue ]   0.68mm    97.6%    99.0%   100.0%   100.0%
+  R     [skeletal    ]   1.71mm    70.0%    77.8%    84.1%    92.3%
+  S     [skeletal    ]   0.57mm    98.6%    98.9%    99.3%   100.0%
+  Ar    [skeletal    ]   1.27mm    83.9%    91.4%    93.2%    96.8%
+  Co    [skeletal    ]   2.02mm    60.9%    68.1%    76.8%    91.8%
+  Gn    [skeletal    ]   0.51mm    98.6%    99.3%    99.6%   100.0%
+  Go    [skeletal    ]   1.48mm    77.9%    85.4%    90.0%    95.7%
+  Po    [skeletal    ]   1.59mm    73.6%    82.9%    86.8%    93.2%
+  LPM   [dental      ]   1.34mm    81.2%    86.5%    87.9%    92.3%
+  LIT   [dental      ]   0.65mm    96.4%    98.2%    98.9%    99.3%
+  LMT   [dental      ]   1.20mm    88.9%    91.8%    93.7%    95.7%
+  UIT   [dental      ]   0.51mm    96.8%    98.2%    98.9%    99.6%
+  UIA   [dental      ]   1.20mm    83.6%    89.9%    94.2%    98.6%
+  LIA   [dental      ]   1.21mm    81.6%    90.8%    95.2%    97.6%
+  Ls    [soft tissue ]   0.90mm    92.1%    93.9%    98.6%    99.6%
+  Li    [soft tissue ]   0.96mm    90.7%    94.6%    97.9%    98.9%
+  Pog`  [soft tissue ]   1.29mm    79.6%    85.7%    87.9%    95.7%
+  Sn    [soft tissue ]   0.73mm    95.4%    97.5%    98.2%    99.6%
+
+=======================================================
+STAGE 1 + STAGE 2
+=======================================================
+Global MRE: 0.99 mm
+MRE skeletal    : 1.08 mm  (A,ANS,B,Me,N,Or,Pog,PNS,R,S,Ar,Co,Gn,Go,Po)
+MRE dental      : 0.99 mm  (LPM,LIT,LMT,UIT,UIA,LIA)
+MRE soft tissue : 0.85 mm  (Pn,Ls,Li,Pog`,Sn)
+
+SDR per threshold (mm):
+  within 2.0mm: 88.8%
+  within 2.5mm: 93.0%
+  within 3.0mm: 95.4%
+  within 4.0mm: 97.8%
+
+Landmark Cat              MRE  SDR2  SDR2.5  SDR3  SDR4
+--------------------------------------------------------------------
+  A     [skeletal    ]   0.95mm    91.8%    96.1%    98.9%   100.0%
+  ANS   [skeletal    ]   1.09mm    87.1%    93.6%    94.6%    97.5%
+  B     [skeletal    ]   0.97mm    90.0%    96.4%    98.6%    99.3%
+  Me    [skeletal    ]   0.50mm    98.9%    99.6%    99.6%    99.6%
+  N     [skeletal    ]   0.70mm    95.0%    98.2%    98.6%    99.3%
+  Or    [skeletal    ]   1.22mm    86.4%    91.8%    94.3%    97.1%
+  Pog   [skeletal    ]   0.62mm    97.9%    98.6%   100.0%   100.0%
+  PNS   [skeletal    ]   1.26mm    84.3%    90.0%    92.1%    95.7%
+  Pn    [soft tissue ]   0.66mm    97.1%    98.1%    99.5%   100.0%
+  R     [skeletal    ]   1.75mm    67.6%    79.7%    85.5%    91.3%
+  S     [skeletal    ]   0.56mm    98.6%    98.9%    99.3%   100.0%
+  Ar    [skeletal    ]   1.23mm    83.2%    89.3%    93.2%    96.8%
+  Co    [skeletal    ]   1.94mm    61.8%    72.9%    79.2%    94.2%
+  Gn    [skeletal    ]   0.49mm    99.3%    99.6%   100.0%   100.0%
+  Go    [skeletal    ]   1.46mm    78.2%    85.4%    90.4%    95.0%
+  Po    [skeletal    ]   1.48mm    78.6%    84.6%    90.0%    93.9%
+  LPM   [dental      ]   1.33mm    82.1%    85.5%    89.4%    93.7%
+  LIT   [dental      ]   0.58mm    97.5%    98.2%    98.9%    99.6%
+  LMT   [dental      ]   1.19mm    89.9%    92.8%    94.2%    95.2%
+  UIT   [dental      ]   0.43mm    98.9%    99.3%    99.3%   100.0%
+  UIA   [dental      ]   1.22mm    82.6%    89.9%    94.2%    98.1%
+  LIA   [dental      ]   1.18mm    83.6%    91.8%    95.7%    98.1%
+  Ls    [soft tissue ]   0.84mm    92.5%    96.8%    98.6%    99.6%
+  Li    [soft tissue ]   0.87mm    92.9%    96.1%    98.6%    99.3%
+  Pog`  [soft tissue ]   1.23mm    80.7%    86.8%    90.4%    96.1%
+  Sn    [soft tissue ]   0.66mm    97.5%    98.2%    99.3%    99.6%
+
+=======================================================
+IMPROVEMENT
+=======================================================
+MRE: 1.04 → 0.99 mm  (+0.05 mm)
+SDR 2.0mm: 87.6% → 88.8%  (+1.2%)
+SDR 2.5mm: 92.3% → 93.0%  (+0.8%)
+SDR 3.0mm: 94.8% → 95.4%  (+0.6%)
+SDR 4.0mm: 97.6% → 97.8%  (+0.2%)
+
+=======================================================
+UNCERTAINTY (target coverage 90%)
+=======================================================
+A useful uncertainty has a clearly positive Spearman correlation with the error,
+a mean error that grows across quintiles, and test coverage close to the target.
+
+[heatmap]  Spearman(sigma, error) = +0.425
+  mean error per uncertainty quintile (mm, low -> high): 0.45 / 0.77 / 0.99 / 1.18 / 1.58
+  coverage on held-out half: 89.6% | mean radius 2.18 mm
+  Spearman per landmark: A:+0.54  ANS:+0.33  B:+0.47  Me:+0.32  N:+0.45  Or:+0.40  Pog:+0.33  PNS:+0.41  Pn:+0.58  R:+0.54  S:+0.40  Ar:+0.48  Co:+0.48  Gn:+0.40  Go:+0.41  Po:+0.54  LPM:+0.64  LIT:+0.58  LMT:+0.59  UIT:+0.46  UIA:+0.52  LIA:+0.56  Ls:+0.46  Li:+0.44  Pog`:+0.47  Sn:+0.33
+
+[tta]  Spearman(sigma, error) = +0.527
+  mean error per uncertainty quintile (mm, low -> high): 0.41 / 0.65 / 0.93 / 1.20 / 1.78
+  coverage on held-out half: 90.1% | mean radius 2.30 mm
+  Spearman per landmark: A:+0.51  ANS:+0.27  B:+0.50  Me:+0.38  N:+0.42  Or:+0.39  Pog:+0.34  PNS:+0.31  Pn:+0.50  R:+0.44  S:+0.34  Ar:+0.51  Co:+0.48  Gn:+0.34  Go:+0.31  Po:+0.47  LPM:+0.61  LIT:+0.54  LMT:+0.53  UIT:+0.58  UIA:+0.50  LIA:+0.56  Ls:+0.53  Li:+0.50  Pog`:+0.44  Sn:+0.42
+
+[totale]  Spearman(sigma, error) = +0.430
+  mean error per uncertainty quintile (mm, low -> high): 0.44 / 0.76 / 0.99 / 1.18 / 1.59
+  coverage on held-out half: 89.5% | mean radius 2.18 mm
+  Spearman per landmark: A:+0.54  ANS:+0.32  B:+0.47  Me:+0.32  N:+0.45  Or:+0.40  Pog:+0.33  PNS:+0.41  Pn:+0.58  R:+0.53  S:+0.39  Ar:+0.48  Co:+0.48  Gn:+0.40  Go:+0.41  Po:+0.53  LPM:+0.64  LIT:+0.58  LMT:+0.59  UIT:+0.46  UIA:+0.51  LIA:+0.57  Ls:+0.46  Li:+0.44  Pog`:+0.47  Sn:+0.33
+
+Calibration saved to esperimenti_leo/probabilistic/calibrazione_incertezza.json (used by predict_heatmap.py)
+=== [probabilistic] 4/4 Stage 2 analysis + ways of combining Stage 1 and Stage 2 ===
+Device: cuda | dir: esperimenti_leo/probabilistic | TTA: True
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=125, val_loss=0.161080, heatmap_mode=probabilistic, grid=centri, validation set 2e033d865b)
+Stage 2 loaded (ImageRefinementNet on the original radiograph, window 25.6 mm / 128 px, max offset 11.0 mm, epoch=29, val_loss=0.7829, validation set 2e033d865b)
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] validation: 280 images, fingerprint 2e033d865b
+Fixed Stage 2 mask: ['R', 'Co', 'Go', 'Po']
+  images processed: 2  images processed: 4  images processed: 6  images processed: 8  images processed: 10  images processed: 12  images processed: 14  images processed: 16  images processed: 18  images processed: 20  images processed: 22  images processed: 24  images processed: 26  images processed: 28  images processed: 30  images processed: 32  images processed: 34  images processed: 36  images processed: 38  images processed: 40  images processed: 42  images processed: 44  images processed: 46  images processed: 48  images processed: 50  images processed: 52  images processed: 54  images processed: 56  images processed: 58  images processed: 60  images processed: 62  images processed: 64  images processed: 66  images processed: 68  images processed: 70  images processed: 72  images processed: 74  images processed: 76  images processed: 78  images processed: 80  images processed: 82  images processed: 84  images processed: 86  images processed: 88  images processed: 90  images processed: 92  images processed: 94  images processed: 96  images processed: 98  images processed: 100  images processed: 102  images processed: 104  images processed: 106  images processed: 108  images processed: 110  images processed: 112  images processed: 114  images processed: 116  images processed: 118  images processed: 120  images processed: 122  images processed: 124  images processed: 126  images processed: 128  images processed: 130  images processed: 132  images processed: 134  images processed: 136  images processed: 138  images processed: 140  images processed: 142  images processed: 144  images processed: 146  images processed: 148  images processed: 150  images processed: 152  images processed: 154  images processed: 156  images processed: 158  images processed: 160  images processed: 162  images processed: 164  images processed: 166  images processed: 168  images processed: 170  images processed: 172  images processed: 174  images processed: 176  images processed: 178  images processed: 180  images processed: 182  images processed: 184  images processed: 186  images processed: 188  images processed: 190  images processed: 192  images processed: 194  images processed: 196  images processed: 198  images processed: 200  images processed: 202  images processed: 204  images processed: 206  images processed: 208  images processed: 210  images processed: 212  images processed: 214  images processed: 216  images processed: 218  images processed: 220  images processed: 222  images processed: 224  images processed: 226  images processed: 228  images processed: 230  images processed: 232  images processed: 234  images processed: 236  images processed: 238  images processed: 240  images processed: 242  images processed: 244  images processed: 246  images processed: 248  images processed: 250  images processed: 252  images processed: 254  images processed: 256  images processed: 258  images processed: 260  images processed: 262  images processed: 264  images processed: 266  images processed: 268  images processed: 270  images processed: 272  images processed: 274  images processed: 276  images processed: 278  images processed: 280
+
+================================================================
+A. MRE (mm) and accuracy — 6769 points, 280 images
+================================================================
+                                          MRE     <2mm  <2.5mm    <3mm    <4mm
+  Stage 1 only                          1.041    87.6%   92.3%   94.8%   97.6%
+  Stage 2 on the current fixed mask     1.068    87.1%   91.9%   94.5%   97.3%
+  Stage 2 on all landmarks              1.071    87.4%   91.6%   94.5%   97.2%
+  Ideal (Stage 2 only where it helps)   0.831    92.1%   95.0%   96.7%   98.4%
+  fixed mask = ['R', 'Co', 'Go', 'Po'] | 'Ideal' = upper bound for ANY selection rule
+  Stage 2 improves 47.4% of the points, worsens 52.6%, leaves -0.0% unchanged
+
+================================================================
+B. Stage 2 effect per quintile of sigma_tta
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.02-0.13     0.414   0.484  +0.070    39.3%        0.0%
+         2   0.13-0.20     0.689   0.710  +0.021    47.9%        0.1%
+         3   0.20-0.27     0.955   0.978  +0.023    48.1%        0.0%
+         4   0.27-0.40     1.250   1.249  -0.001    51.4%        0.1%
+         5   0.40-6.53     1.898   1.934  +0.036    50.4%        0.1%
+
+C. Apply Stage 2 only where sigma_tta > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  1.041    87.6%   92.3%   94.8%   97.6%
+       0.02      100.0%  1.071    87.4%   91.6%   94.5%   97.2%
+       0.23       50.0%  1.050    87.8%   91.7%   94.5%   97.3%
+       0.27       40.0%  1.048    87.8%   91.8%   94.5%   97.2%
+       0.33       30.0%  1.053    87.6%   91.8%   94.6%   97.3%
+       0.40       20.0%  1.049    87.7%   91.9%   94.7%   97.4%
+       0.56       10.0%  1.044    87.8%   92.1%   94.9%   97.5%
+       0.76        5.0%  1.035    87.9%   92.5%   95.1%   97.6%
+       1.68        1.0%  1.036    87.8%   92.5%   95.0%   97.7%
+  threshold chosen on even images: 0.75 mm -> on odd images MRE 1.028 (Stage 1) vs 1.025 (selective Stage 2), 4.2% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  1.028    88.0%   92.9%   95.4%   97.9%
+      selective Stage 2  1.025    88.4%   93.1%   95.6%   97.8%
+
+================================================================
+B. Stage 2 effect per quintile of sigma_heatmap
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.21-1.22     0.459   0.552  +0.093    37.7%        0.0%
+         2   1.22-1.82     0.802   0.862  +0.060    46.5%        0.0%
+         3   1.82-2.50     1.029   1.054  +0.025    49.7%        0.0%
+         4   2.50-3.63     1.249   1.221  -0.028    52.4%        0.0%
+         5   3.63-44.93    1.668   1.668  -0.000    50.9%        0.2%
+
+C. Apply Stage 2 only where sigma_heatmap > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  1.041    87.6%   92.3%   94.8%   97.6%
+       0.21      100.0%  1.071    87.4%   91.6%   94.5%   97.2%
+       2.15       50.0%  1.036    88.1%   92.2%   94.8%   97.4%
+       2.50       40.0%  1.036    87.9%   92.2%   94.9%   97.4%
+       3.00       30.0%  1.034    87.9%   92.2%   94.9%   97.3%
+       3.63       20.0%  1.041    87.7%   92.1%   94.8%   97.4%
+       4.90       10.0%  1.035    87.8%   92.3%   94.9%   97.6%
+       6.73        5.0%  1.036    87.8%   92.3%   95.0%   97.6%
+      13.78        1.0%  1.039    87.6%   92.3%   94.9%   97.7%
+  threshold chosen on even images: 6.75 mm -> on odd images MRE 1.028 (Stage 1) vs 1.025 (selective Stage 2), 3.9% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  1.028    88.0%   92.9%   95.4%   97.9%
+      selective Stage 2  1.025    88.1%   92.9%   95.6%   97.9%
+
+================================================================
+D. Per landmark (Stage 2 applied to every point)
+================================================================
+         err S1  err S2   delta improves in mask
+  A       1.010   0.977  -0.033    54.3%        
+  ANS     1.191   1.120  -0.071    55.0%        
+  B       0.994   1.025  +0.031    43.2%        
+  Me      0.553   0.525  -0.028    49.6%        
+  N       0.769   0.737  -0.032    53.2%        
+  Or      1.275   1.256  -0.018    49.6%        
+  Pog     0.680   0.629  -0.051    52.1%        
+  PNS     1.346   1.310  -0.036    52.5%        
+  Pn      0.682   0.752  +0.070    38.6%        
+  R       1.714   2.284  +0.570    29.0%     yes
+  S       0.572   0.627  +0.055    43.6%        
+  Ar      1.264   1.318  +0.054    47.1%        
+  Co      2.020   2.018  -0.002    46.4%     yes
+  Gn      0.511   0.550  +0.039    42.5%        
+  Go      1.477   1.696  +0.220    41.8%     yes
+  Po      1.586   1.581  -0.006    51.4%     yes
+  LPM     1.342   1.465  +0.124    42.0%        
+  LIT     0.647   0.629  -0.019    48.9%        
+  LMT     1.196   1.305  +0.109    44.9%        
+  UIT     0.504   0.490  -0.014    47.1%        
+  UIA     1.200   1.394  +0.194    41.5%        
+  LIA     1.212   1.299  +0.087    41.5%        
+  Ls      0.902   0.851  -0.051    51.8%        
+  Li      0.955   0.857  -0.098    53.2%        
+  Pog`    1.285   1.297  +0.011    45.7%        
+  Sn      0.730   0.645  -0.085    53.6%        
+
+================================================================
+E. Size of the Stage 2 corrections
+================================================================
+  max correction allowed (MAX_OFFSET): ~15.56 mm on this data
+  proposed correction: median 0.466 mm | 90th pct 1.413 mm | max 8.154 mm
+  rejected by the guard: 0.0%
+  Stage 1 error: median 0.70 mm | errors > max correction: 0.0%
+  Spearman(correction size, Stage 1 error): +0.450   (near 0 = Stage 2 does not 'see' where Stage 1 is wrong)
+
+Per-point data saved to esperimenti_leo/probabilistic/analisi_stage2.csv
+Compare the ways of combining Stage 1 and Stage 2 with:  python strategie_stage2.py esperimenti_leo/probabilistic/analisi_stage2.csv
+6769 points, 280 images | objective: mean accuracy within 2, 2.5, 3, 4 mm | 2-fold CV over even/odd images
+
+strategy                              MRE    <2mm  <2.5mm    <3mm    <4mm mean acc   parameters (chosen on even images)
+-----------------------------------------------------------------------------------------------------------------------
+Stage 1 only                        1.041   87.6%   92.3%   94.8%   97.6%   93.08%   
+Stage 2 everywhere                  1.071   87.4%   91.6%   94.5%   97.2%   92.68%   
+threshold on sigma_tta              1.034   88.0%   92.5%   95.1%   97.6%   93.30%   sigma_tta > 0.75 mm
+fusion (weighted average)           0.991   88.9%   93.0%   95.5%   97.8%   93.79%   c=0.25 p=2 floor=0 mm
+classifier                          0.989   88.9%   93.1%   95.5%   97.9%   93.86%   soft weight w = p
+Stage 2 everywhere + S2 TTA         1.062   87.4%   91.7%   94.6%   97.3%   92.75%   
+threshold on sigma_tta + S2 TTA     1.036   87.9%   92.4%   95.0%   97.6%   93.24%   sigma_tta > 0.75 mm
+fusion (weighted average) + S2 TTA  0.990   88.9%   93.2%   95.4%   97.9%   93.84%   c=0.40 p=1 floor=0.1 mm
+classifier + S2 TTA                 0.988   89.0%   93.1%   95.4%   97.9%   93.86%   soft weight w = p
+-----------------------------------------------------------------------------------------------------------------------
+Ideal (best of the two)             0.831   92.1%   95.0%   96.7%   98.5%   95.58%   unreachable upper bound
+Ideal (best of the two) + S2 TTA    0.831   92.1%   95.0%   96.7%   98.5%   95.54%   unreachable upper bound
+
+Done — mer 21 ott 2026, 21.05.24, CEST
+--- probabilistic ---
+Global MRE: 1.04 mm
+  within 2.0mm: 87.6%
+Global MRE: 0.99 mm
+  within 2.0mm: 88.8%
+[heatmap]  Spearman(sigma, error) = +0.425
+  coverage on held-out half: 89.6% | mean radius 2.18 mm
+[tta]  Spearman(sigma, error) = +0.527
+  coverage on held-out half: 90.1% | mean radius 2.30 mm
+[totale]  Spearman(sigma, error) = +0.430
+  coverage on held-out half: 89.5% | mean radius 2.18 mm
