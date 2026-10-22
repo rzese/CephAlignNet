@@ -244,10 +244,24 @@ Aariz, poi ISBI, poi Tracciati. Ogni campione esce come:
 - `bbox` è il rettangolo che contiene i punti validi, con 20 px di margine e limitato
   all'immagine. Non viene usato dagli script di training.
 - I Tracciati si caricano solo se `tracciati_path` esiste.
-- **`crea_split(dataset, val_split, seed)`**: è lo split train/validation usato da
-  *tutti* gli script. Divide solo Aariz + ISBI e mette tutti i Tracciati nel training,
-  così il validation set non cambia quando si aggiungono i Tracciati. Senza
-  Tracciati riproduce esattamente il vecchio `random_split`.
+- **`crea_split(dataset, val_split, seed, modo)`**: è lo split train/validation usato da
+  *tutti* gli script. Due modalità, scelte con la variabile d'ambiente `CEPH_SPLIT`:
+  - **`ufficiale`** (default): la divisione con cui arrivano i dataset. Aariz `train` →
+    training, `valid` → validation, `test` → test; ISBI `TrainingData` → training, tranne
+    un'immagine ogni 5 (005, 010, …, 150: 30 immagini) → validation; ISBI `Test1Data` e
+    `Test2Data` → test. I Tracciati vanno tutti nel training. Risultato: 820 training,
+    180 validation, 400 test (150 Aariz + 150 ISBI Test1 + 100 ISBI Test2).
+  - **`casuale`**: il vecchio split 80/20 con seed 42 su Aariz + ISBI, solo per
+    rivalutare i modelli addestrati con quello (per esempio `esperimenti_leo`).
+
+  Il validation serve per early stopping, taratura della fusione, soglie e calibrazione
+  dell'incertezza; i test set solo per i risultati finali.
+- **`crea_insieme(dataset, nome)`**: le immagini su cui valutare: `validation` oppure
+  `test`, `test_aariz`, `test_isbi1`, `test_isbi2` (solo con lo split ufficiale). Usato da
+  `evaluate_refine.py`, `analisi_stage2.py` e `coda_errori.py` (opzione `--insieme`).
+- **Impronta del validation set**: `crea_split` stampa un codice breve delle immagini di
+  validation; i checkpoint lo salvano e, se al caricamento non coincide, compare un avviso
+  ("results are NOT valid").
 - `ceph_path`/`ceph_base` sono ignorati: CephBiometrics è stato rimosso perché
   duplicava ISBI.
 - Il percorso ISBI di default qui è `data/ISBI2015`, ma tutti gli script passano
@@ -360,13 +374,13 @@ ribaltate.
 | `learning_rate` | 3e-5 |
 | `patience` | 60 |
 | `geo_loss_weight` | 0.05 |
-| `val_split` | 0.2 (seed 42) |
+| `val_split` | 0.2 (seed 42, solo con `CEPH_SPLIT=casuale`) |
 | `save_path` | `modello_heatmap.pth` |
 
 Passi:
 
-1. **`prepara_dati`**: crea `Datasets` (con i Tracciati se la cartella esiste) e fa
-   uno split casuale 80/20 con seed 42.
+1. **`prepara_dati`**: crea `Datasets` (con i Tracciati se la cartella esiste) e usa
+   `crea_split` (split ufficiale per default).
 2. **`collate_con_heatmap`**:
    - resize a 512×512
    - normalizzazione delle coordinate in [0,1]

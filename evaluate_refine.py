@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from functools import partial
 
-from src.datasets import Datasets, crea_split
+from src.datasets import Datasets, crea_insieme
 from src.heatmap_utils import HEATMAP_TRAIN_SIZE
 from src.inferenza import (carica_stage1 as _carica_stage1, carica_stage2, collate_base,
                            decodifica as _decodifica, predici_con_tta as _predici_con_tta,
@@ -54,6 +54,10 @@ CONFIG = {
     "analizza_incertezza": True,
     "copertura":           0.9,
     "calibrazione_path":   "calibrazione_incertezza.json",
+    # Images to evaluate on: "validation" (also writes the calibration) or a test
+    # set of the official split: "test", "test_aariz", "test_isbi1", "test_isbi2"
+    # (uses the calibration computed on validation, never rewrites it)
+    "insieme":             "validation",
 }
 
 NOMI = ["A","ANS","B","Me","N","Or","Pog","PNS","Pn","R","S","Ar","Co","Gn","Go","Po","LPM","LIT","LMT","UIT","UIA","LIA","Ls","Li","Pog`","Sn"]
@@ -195,6 +199,27 @@ def stampa_risultati(titolo, mre, mre_lm, sdr, sdr_lm):
             print(f"  {nome:<5} [{cat:12s}]  — no valid samples")
 
 
+def copertura_calibrazione_validation(record, path):
+    """On a test set: coverage of the radii calibrated on validation (radius =
+    q[landmark] x sigma), without re-calibrating on the test images."""
+    import os
+    import numpy as np
+    if not path or not os.path.exists(path):
+        print(f"\nNo calibration file ({path}): evaluate on validation first to create it.")
+        return
+    with open(path) as f:
+        cal = json.load(f)
+    lm, err = np.asarray(record["lm"]), np.asarray(record["err"], float)
+    print(f"\n{'='*55}\nUNCERTAINTY — radii calibrated on validation (target {cal['copertura']:.0%})\n{'='*55}")
+    for fonte, dati in cal["fonti"].items():
+        if f"sigma_{fonte}" not in record:
+            continue
+        q = np.array([np.nan if v is None else v for v in dati["q"]], float)
+        raggio = q[lm] * np.asarray(record[f"sigma_{fonte}"], float)
+        ok = ~np.isnan(raggio)
+        print(f"[{fonte}]  coverage on this set: {(err[ok] <= raggio[ok]).mean():.1%} | mean radius {raggio[ok].mean():.2f} mm")
+
+
 def salva_calibrazione(path, risultati, stage1, config):
     """Writes the per-landmark conformal factors used by predict_heatmap.py."""
     dati = {
@@ -232,7 +257,8 @@ def main():
         print(f"Stage 2 mode: {modo}{dettaglio.get(modo, '')}")
 
     dataset = Datasets(aariz_path=CONFIG["aariz_path"], isbi_path=CONFIG["isbi_path"])
-    _, val_ds = crea_split(dataset, CONFIG["val_split"], seed=42)
+    val_ds = crea_insieme(dataset, CONFIG.get("insieme", "validation"), CONFIG["val_split"], seed=42)
+    print(f"Evaluated on: {CONFIG.get('insieme', 'validation')} ({len(val_ds)} images)")
     val_loader = DataLoader(val_ds, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=0, collate_fn=partial(collate_fn, img_size=CONFIG["img_size"]))
 
     incert = CONFIG.get("analizza_incertezza", True)
@@ -253,10 +279,12 @@ def main():
         if incert:
             record = ris2[4]   # calibrate on the final pipeline output
 
-    if incert:
+    if incert and CONFIG.get("insieme", "validation") == "validation":
         risultati = analisi_incertezza(record, CONFIG["num_landmarks"], copertura=CONFIG["copertura"])
         stampa_analisi_incertezza(risultati, NOMI)
         salva_calibrazione(CONFIG["calibrazione_path"], risultati, stage1, CONFIG)
+    elif incert:
+        copertura_calibrazione_validation(record, CONFIG["calibrazione_path"])
 
 
 if __name__ == "__main__":

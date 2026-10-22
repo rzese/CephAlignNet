@@ -22,8 +22,8 @@ With --salva-immagini DIR the worst points (as many as --peggiori) are also
 drawn, one PNG each: on the left a zoom around the point, on the right the whole
 radiograph. Green = annotation (mean of the two orthodontists), red = Stage 1,
 yellow = final (fusion). The file name of the radiograph is printed in section B.
-"img" in the CSV is the position in the validation set (crea_split, seed 42),
-mapped back to the Aariz / ISBI file here.
+"img" in the CSV is the position in the evaluated set (--insieme, the same one
+given to analisi_stage2.py), mapped back to the Aariz / ISBI file here.
 """
 import argparse
 import os
@@ -50,17 +50,18 @@ def statistiche(e, quota_peggiori=0.01):
     }
 
 
-def carica_validation(aariz_path, isbi_path):
-    """Validation set in the same order as analisi_stage2.py (CSV column 'img' = position in it)."""
-    from src.datasets import Datasets, crea_split
+def carica_validation(aariz_path, isbi_path, insieme="validation"):
+    """Evaluated set in the same order as analisi_stage2.py (CSV column 'img' = position in it)."""
+    from src.datasets import Datasets, crea_insieme
     dataset = Datasets(aariz_path=aariz_path, isbi_path=isbi_path)
-    _, val_ds = crea_split(dataset, 0.2, seed=42)
-    return dataset, val_ds
+    return dataset, crea_insieme(dataset, insieme, 0.2, seed=42)
 
 
 def nome_file(dataset, val_ds, img):
     """'aariz/<file>' or 'isbi/<file>' of validation image number img."""
     g = val_ds.indices[img]
+    if hasattr(val_ds.dataset, "unife"):                 # external UNIFE test set
+        return f"unife/{val_ds.dataset.unife.samples[g][0]}"
     if g < dataset.len_aariz:
         fname, split, ext = dataset.aariz.samples[g]
         return f"aariz/{split}/{fname}{ext}"
@@ -127,6 +128,7 @@ def main():
                     help="draw the worst points (zoom + whole radiograph) into DIR; needs the data")
     ap.add_argument("--aariz-path", default="data/Aariz")
     ap.add_argument("--isbi-path", default="data/Cepha400")
+    ap.add_argument("--insieme", default="validation", help="the set given to analisi_stage2.py --insieme")
     a = ap.parse_args()
 
     d = carica(a.csv)
@@ -137,7 +139,7 @@ def main():
     vett_fin = d["e1"] + w[:, None] * d["d"]       # final error vector (mm)
     dataset = val_ds = None
     if a.salva_immagini:
-        dataset, val_ds = carica_validation(a.aariz_path, a.isbi_path)
+        dataset, val_ds = carica_validation(a.aariz_path, a.isbi_path, a.insieme)
         os.makedirs(a.salva_immagini, exist_ok=True)
     e = e1 if a.stage1 else ef
     quale = "Stage 1 only" if a.stage1 else f"final (fusion {p})"

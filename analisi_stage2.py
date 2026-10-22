@@ -31,7 +31,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from src.datasets import Datasets, crea_split
+from src.datasets import Datasets, crea_insieme
 from src.heatmap_utils import HEATMAP_TRAIN_SIZE
 from src.inferenza import (carica_stage1, carica_stage2, collate_base, predici_con_tta,
                            applica_stage2, errori_mm, stage2_predizioni)
@@ -251,6 +251,9 @@ def main():
     ap.add_argument("--stage2", help="Stage 2 checkpoint (default: <dir>/modello_refine.pth)")
     ap.add_argument("--batch-size", type=int)
     ap.add_argument("--no-tta", action="store_true")
+    ap.add_argument("--insieme", default="validation",
+                    choices=["validation", "test", "test_aariz", "test_isbi1", "test_isbi2", "unife"],
+                    help="images to analyse (test sets: official split only)")
     a = ap.parse_args()
     if a.da_csv:
         r = carica_csv(a.da_csv)
@@ -276,7 +279,7 @@ def main():
         raise SystemExit(f"{percorso_s2} not found")
 
     dataset = Datasets(aariz_path=CONFIG["aariz_path"], isbi_path=CONFIG["isbi_path"])
-    _, val_ds = crea_split(dataset, CONFIG["val_split"], seed=42)
+    val_ds = crea_insieme(dataset, a.insieme, CONFIG["val_split"], seed=42)
     loader = DataLoader(val_ds, batch_size=CONFIG["batch_size"], shuffle=False, num_workers=0,
                         collate_fn=partial(collate_base, img_size=CONFIG["img_size"], con_originali=True))
 
@@ -305,8 +308,8 @@ def main():
     if getattr(stage2, "tipo_input", "feature") == "immagine":
         r["max_offset_mm"] = np.full(len(r["img"]), stage2.max_offset_mm)   # read by strategie_stage2.py
 
-    nome = "analisi_stage2.csv" if not a.stage2 else \
-        f"analisi_stage2_{os.path.splitext(os.path.basename(a.stage2))[0]}.csv"
+    nome = "analisi_stage2" + (f"_{os.path.splitext(os.path.basename(a.stage2))[0]}" if a.stage2 else "") + \
+        ("" if a.insieme == "validation" else f"_{a.insieme}") + ".csv"
     out = os.path.join(a.dir, nome)
     with open(out, "w", newline="") as f:
         w = csv.writer(f)

@@ -3,6 +3,9 @@
 # Full pipeline, in sequence, for each heatmap mode:
 #   Stage 1 → (landmark_stats) → Stage 2 → evaluation + calibration
 #   → Stage 2 analysis + comparison of the ways of combining the two stages
+#   → final results on the official test sets (Aariz test, ISBI Test1, ISBI Test2)
+# Split: official (CEPH_SPLIT=ufficiale, default); CEPH_SPLIT=casuale only to
+# re-evaluate models trained with the old random 80/20 split.
 #
 # Submit from the repository root (the logs/ folder must exist):
 #   mkdir -p logs && sbatch run_tutto.slurm
@@ -113,7 +116,7 @@ for MODE in $MODES; do
     fi
     cp src/parametri_stage2.py "$DIR/parametri_stage2.py"
 
-    echo "=== [$MODE] 1/4 Stage 1 training ==="
+    echo "=== [$MODE] 1/5 Stage 1 training ==="
     python esegui_esperimento.py heatmap --mode "$MODE" --dir "$DIR" \
         --batch-size "$BATCH_HEATMAP" ${EPOCH_ARGS[@]+"${EPOCH_ARGS[@]}"} 2>&1 | tee "$DIR/1_train_heatmap.log"
 
@@ -124,18 +127,27 @@ for MODE in $MODES; do
         echo "WARNING: $STATS was not generated"
     fi
 
-    echo "=== [$MODE] 2/4 Stage 2 training ==="
+    echo "=== [$MODE] 2/5 Stage 2 training ==="
     python esegui_esperimento.py refine --dir "$DIR" \
         --batch-size "$BATCH_REFINE" ${EPOCH_ARGS[@]+"${EPOCH_ARGS[@]}"} 2>&1 | tee "$DIR/2_train_refine.log"
 
-    echo "=== [$MODE] 3/4 Evaluation + uncertainty calibration ==="
+    echo "=== [$MODE] 3/5 Evaluation + uncertainty calibration ==="
     python esegui_esperimento.py evaluate --dir "$DIR" 2>&1 | tee "$DIR/3_evaluate.log"
 
     # Measures how to combine the two stages on THIS run (nothing is saved:
     # to adopt the parameters, re-run strategie_stage2.py with --salva src/parametri_stage2.py)
-    echo "=== [$MODE] 4/4 Stage 2 analysis + ways of combining Stage 1 and Stage 2 ==="
+    echo "=== [$MODE] 4/5 Stage 2 analysis + ways of combining Stage 1 and Stage 2 ==="
     python analisi_stage2.py --dir "$DIR" 2>&1 | tee "$DIR/4_analisi_stage2.log"
     python strategie_stage2.py "$DIR/analisi_stage2.csv" 2>&1 | tee "$DIR/5_strategie_stage2.log"
+
+    # Final results on the official test sets, with the parameters fixed
+    # beforehand (fusion from src/parametri_stage2.py, calibration from validation)
+    if [ "${CEPH_SPLIT:-ufficiale}" = "ufficiale" ]; then
+        echo "=== [$MODE] 5/5 Test sets (official split) ==="
+        for T in test_aariz test_isbi1 test_isbi2; do
+            python esegui_esperimento.py evaluate --dir "$DIR" --insieme "$T" 2>&1 | tee "$DIR/6_${T}.log"
+        done
+    fi
 done
 
 # Leave src/ clean: the statistics of each mode are in $OUT/<mode>/landmark_stats.py.
@@ -147,4 +159,9 @@ echo "Done — $(date)"
 for MODE in $MODES; do
     echo "--- $MODE ---"
     grep -E "^Global MRE|within 2.0mm|Spearman\(sigma|coverage on held-out" "$OUT/$MODE/3_evaluate.log" || true
+    for T in test_aariz test_isbi1 test_isbi2; do
+        if [ -f "$OUT/$MODE/6_${T}.log" ]; then
+            echo "  [$T]"; grep -E "^Global MRE|within 2.0mm" "$OUT/$MODE/6_${T}.log" | tail -2 || true
+        fi
+    done
 done

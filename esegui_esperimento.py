@@ -29,6 +29,9 @@ def main(argv=None):
                     help="Tracciati folder (default: not used, as in the previous runs)")
     ap.add_argument("--tabella-scale", default=None, help="per-case scale table for Tracciati")
     ap.add_argument("--no-tta", action="store_true", help="evaluate without TTA")
+    ap.add_argument("--insieme", default="validation",
+                    choices=["validation", "test", "test_aariz", "test_isbi1", "test_isbi2", "unife"],
+                    help="evaluate step: images to evaluate on (test sets: official split only)")
     a = ap.parse_args(argv)
 
     os.makedirs(a.dir, exist_ok=True)
@@ -51,6 +54,7 @@ def main(argv=None):
                         calibrazione_path=os.path.join(a.dir, "calibrazione_incertezza.json"))
         if a.no_tta:
             m.CONFIG["usa_tta"] = False
+        m.CONFIG["insieme"] = a.insieme
 
     if a.batch_size:
         m.CONFIG["batch_size"] = a.batch_size

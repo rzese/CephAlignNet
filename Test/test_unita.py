@@ -365,8 +365,8 @@ def test_ordine_aariz_e_impronta_validazione():
         def __len__(self):
             return self.len_aariz
     nomi = [f"img{k:03d}" for k in range(50)]
-    ds.crea_split(Finto(nomi), 0.2, 42); imp1 = ds.impronta_split()
-    ds.crea_split(Finto(nomi[::-1]), 0.2, 42); imp2 = ds.impronta_split()
+    ds.crea_split(Finto(nomi), 0.2, 42, modo="casuale"); imp1 = ds.impronta_split()
+    ds.crea_split(Finto(nomi[::-1]), 0.2, 42, modo="casuale"); imp2 = ds.impronta_split()
     assert imp1 != imp2
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
@@ -377,6 +377,49 @@ def test_ordine_aariz_e_impronta_validazione():
         ds.registra_impronta_modello("Stage 1", imp2)
     assert "NOT valid" not in out.getvalue()
     ds._IMPRONTE["modelli"].clear()
+
+
+def test_split_ufficiale_e_insiemi_di_test():
+    """Official split: Aariz train/valid/test folders, ISBI TrainingData with
+    every 5th image in validation, Test1/Test2 as test sets; Tracciati in
+    training; the sets do not overlap and cover every image."""
+    from src import datasets as ds
+
+    class Finto:
+        def __init__(self):
+            self.aariz = type("A", (), {"samples": [(f"a{k}", sp, ".png") for k, sp in
+                                                    enumerate(["train"] * 7 + ["valid"] * 2 + ["test"] * 3)]})()
+            self.isbi = type("I", (), {"samples": [(n, f"{n:03d}.bmp") for n in range(1, 401)]})()
+            self.len_aariz, self.len_isbi, self.len_tracciati = 12, 400, 4
+        def __len__(self):
+            return 416
+    d = Finto()
+    tr, va = ds.crea_split(d, modo="ufficiale")
+    test = {n: ds.crea_insieme(d, n, modo="ufficiale").indices for n in ("test_aariz", "test_isbi1", "test_isbi2")}
+    assert len(va.indices) == 2 + 30 and len(test["test_aariz"]) == 3
+    assert len(test["test_isbi1"]) == 150 and len(test["test_isbi2"]) == 100
+    assert set(range(412, 416)) <= set(tr.indices)                    # Tracciati in training
+    tutti = [tr.indices, va.indices] + list(test.values())
+    assert sum(len(x) for x in tutti) == 416 and len(set().union(*map(set, tutti))) == 416
+    assert len(ds.crea_insieme(d, "test", modo="ufficiale").indices) == 253
+    ds._IMPRONTE["modelli"].clear()
+
+
+def test_unife_coordinate_e_numeri():
+    """UNIFE CSV: names or row numbers (same order), ';' or ',', ImageJ numbers
+    also with dots as thousands separators; only the mapped landmarks are kept."""
+    from src.dataset_unife import leggi_coordinate, numero, ORDINE_UNIFE, MAPPA_UNIFE
+    assert numero("1.155.000") == 1155.0 and numero("659.500") == 659.5 and numero("3,5") == 3.5
+    with tempfile.TemporaryDirectory() as d:
+        a, b = os.path.join(d, "a.csv"), os.path.join(d, "b.csv")
+        with open(a, "w") as f:
+            f.write(";X;Y\nS;97.304;55.539\nNa;161.683;31.846\n")
+        with open(b, "w") as f:
+            f.write(" ,X,Y\n" + "".join(f"{k + 1},{k}.5,{2 * k}.25\n" for k in range(35)))
+        pa, pb = leggi_coordinate(a), leggi_coordinate(b)
+    assert pa == {"S": (97.304, 55.539), "Na": (161.683, 31.846)}
+    assert pb["S"] == (1.5, 2.25) and pb["Me'"] == (34.5, 68.25) and len(pb) == 35
+    assert set(MAPPA_UNIFE) <= set(ORDINE_UNIFE) and len(set(MAPPA_UNIFE.values())) == 22
 
 
 def test_crea_split_stabile_con_o_senza_tracciati():
@@ -392,8 +435,8 @@ def test_crea_split_stabile_con_o_senza_tracciati():
             return k
 
     senza, con = Finto(100, 40, 0), Finto(100, 40, 25)
-    tr0, va0 = crea_split(senza, 0.2, 42)
-    tr1, va1 = crea_split(con, 0.2, 42)
+    tr0, va0 = crea_split(senza, 0.2, 42, modo="casuale")
+    tr1, va1 = crea_split(con, 0.2, 42, modo="casuale")
     assert va0.indices == va1.indices
     assert set(range(140, 165)) <= set(tr1.indices) and not set(va1.indices) & set(range(140, 165))
     # identical to the old random_split when there are no Tracciati
