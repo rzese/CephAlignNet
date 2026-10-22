@@ -1,0 +1,139 @@
+[WARN] src/landmark_stats.py non trovato — uso valori di fallback (esegui `python -m src.analiz_land` per generarli dai dati).
+[WARN] src/landmark_stats.py not found — using fallback REFINE_LANDMARK_MASK (run `python -m src.analiz_land` to generate it from the data).
+Device: cuda | dir: esperimenti_leo/probabilistic | TTA: True
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=125, val_loss=0.161080, heatmap_mode=probabilistic, grid=centri, validation set 2e033d865b)
+Stage 2 loaded (ImageRefinementNet on the original radiograph, window 25.6 mm / 128 px, max offset 11.0 mm, epoch=29, val_loss=0.7829, validation set 2e033d865b)
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[UnifeDataset] 200 cases | 0 skipped
+[crea_insieme] unife: 200 images (external test set)
+Fixed Stage 2 mask: ['R', 'Co', 'Go', 'Po']
+  images processed: 2[ WARN:0@6.701] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@6.701] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 4  images processed: 6[ WARN:0@7.467] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@7.467] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 8  images processed: 10  images processed: 12  images processed: 14  images processed: 16  images processed: 18  images processed: 20  images processed: 22  images processed: 24  images processed: 26  images processed: 28  images processed: 30  images processed: 32[ WARN:0@12.480] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@12.480] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@12.497] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@12.497] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 34  images processed: 36[ WARN:0@13.251] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@13.251] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 38  images processed: 40[ WARN:0@14.011] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@14.011] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 42  images processed: 44  images processed: 46  images processed: 48[ WARN:0@15.521] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@15.521] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 50[ WARN:0@15.923] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@15.923] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 52  images processed: 54  images processed: 56  images processed: 58  images processed: 60  images processed: 62  images processed: 64  images processed: 66  images processed: 68  images processed: 70[ WARN:0@19.767] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@19.768] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 72  images processed: 74  images processed: 76  images processed: 78[ WARN:0@21.288] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@21.288] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 80  images processed: 82  images processed: 84[ WARN:0@22.459] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@22.459] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 86[ WARN:0@22.824] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@22.825] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+  images processed: 88  images processed: 90  images processed: 92  images processed: 94  images processed: 96  images processed: 98  images processed: 100  images processed: 102  images processed: 104  images processed: 106  images processed: 108  images processed: 110  images processed: 112  images processed: 114  images processed: 116  images processed: 118  images processed: 120  images processed: 122  images processed: 124  images processed: 126  images processed: 128  images processed: 130  images processed: 132  images processed: 134  images processed: 136  images processed: 138  images processed: 140  images processed: 142  images processed: 144  images processed: 146  images processed: 148  images processed: 150  images processed: 152  images processed: 154  images processed: 156  images processed: 158  images processed: 160  images processed: 162  images processed: 164  images processed: 166  images processed: 168  images processed: 170  images processed: 172  images processed: 174  images processed: 176  images processed: 178  images processed: 180  images processed: 182  images processed: 184  images processed: 186  images processed: 188  images processed: 190  images processed: 192  images processed: 194  images processed: 196  images processed: 198  images processed: 200
+
+================================================================
+A. MRE (mm) and accuracy — 4400 points, 200 images
+================================================================
+                                          MRE     <2mm  <2.5mm    <3mm    <4mm
+  Stage 1 only                          3.254    52.2%   59.6%   65.3%   74.2%
+  Stage 2 on the current fixed mask     3.168    52.3%   60.0%   66.0%   75.0%
+  Stage 2 on all landmarks              2.148    63.0%   71.3%   77.8%   86.2%
+  Ideal (Stage 2 only where it helps)   1.860    69.9%   76.8%   81.9%   89.2%
+  fixed mask = ['R', 'Co', 'Go', 'Po'] | 'Ideal' = upper bound for ANY selection rule
+  Stage 2 improves 57.6% of the points, worsens 42.4%, leaves -0.0% unchanged
+
+================================================================
+B. Stage 2 effect per quintile of sigma_tta
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.07-0.25     1.394   1.463  +0.069    41.9%        0.0%
+         2   0.25-0.37     1.875   1.986  +0.111    44.7%        0.0%
+         3   0.37-0.79     2.312   2.412  +0.100    45.9%        0.0%
+         4   0.79-4.27     2.542   2.165  -0.377    60.9%        0.1%
+         5   4.27-19.78    8.147   2.715  -5.433    94.7%        7.5%
+
+C. Apply Stage 2 only where sigma_tta > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  3.254    52.2%   59.6%   65.3%   74.2%
+       0.07      100.0%  2.148    63.0%   71.3%   77.8%   86.2%
+       0.47       50.0%  2.101    64.6%   72.3%   78.1%   86.9%
+       0.79       40.0%  2.092    64.6%   72.5%   78.5%   87.1%
+       2.00       30.0%  2.087    65.0%   72.8%   78.8%   87.4%
+       4.27       20.0%  2.167    62.8%   71.1%   77.5%   86.8%
+       8.79       10.0%  2.498    57.5%   65.5%   71.8%   81.6%
+      12.17        5.0%  2.819    54.5%   62.2%   68.3%   77.6%
+      16.42        1.0%  3.160    52.5%   59.9%   65.7%   74.7%
+  threshold chosen on even images: 1.12 mm -> on odd images MRE 3.224 (Stage 1) vs 2.066 (selective Stage 2), 32.5% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  3.224    53.2%   60.4%   65.9%   73.6%
+      selective Stage 2  2.066    65.2%   73.1%   79.2%   87.2%
+
+================================================================
+B. Stage 2 effect per quintile of sigma_heatmap
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.65-2.06     1.531   1.582  +0.051    46.7%        0.0%
+         2   2.06-3.02     1.878   1.961  +0.083    41.6%        0.0%
+         3   3.02-4.45     2.479   2.242  -0.236    47.5%        0.5%
+         4   4.45-7.52     4.144   2.527  -1.618    66.6%        3.2%
+         5   7.52-35.26    6.238   2.428  -3.810    85.7%        4.0%
+
+C. Apply Stage 2 only where sigma_heatmap > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  3.254    52.2%   59.6%   65.3%   74.2%
+       0.65      100.0%  2.148    63.0%   71.3%   77.8%   86.2%
+       3.64       50.0%  2.130    63.9%   71.6%   77.8%   86.4%
+       4.45       40.0%  2.168    63.5%   71.4%   77.5%   86.1%
+       5.64       30.0%  2.275    62.7%   70.5%   76.5%   85.0%
+       7.52       20.0%  2.492    60.5%   68.2%   74.1%   82.8%
+      10.41       10.0%  2.823    56.7%   64.1%   69.9%   78.7%
+      13.08        5.0%  3.020    54.7%   61.9%   67.6%   76.5%
+      18.39        1.0%  3.201    52.7%   60.1%   65.8%   74.7%
+  threshold chosen on even images: 3.25 mm -> on odd images MRE 3.224 (Stage 1) vs 2.101 (selective Stage 2), 53.4% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  3.224    53.2%   60.4%   65.9%   73.6%
+      selective Stage 2  2.101    64.2%   72.2%   78.1%   86.9%
+
+================================================================
+D. Per landmark (Stage 2 applied to every point)
+================================================================
+         err S1  err S2   delta improves in mask
+  A       2.509   1.365  -1.143    51.5%        
+  ANS     3.741   2.246  -1.495    71.5%        
+  B       3.000   1.532  -1.468    58.0%        
+  Me      3.944   3.336  -0.609    39.5%        
+  N       2.092   0.859  -1.233    72.5%        
+  Or      3.398   2.405  -0.993    60.5%        
+  Pog     3.148   1.746  -1.402    61.0%        
+  PNS     4.749   4.211  -0.538    46.0%        
+  Pn      2.304   0.953  -1.351    74.0%        
+  S       1.582   0.880  -0.702    52.5%        
+  Ar      2.897   1.497  -1.400    68.5%        
+  Co      3.406   2.891  -0.515    41.5%     yes
+  Go      3.881   3.219  -0.662    44.0%     yes
+  Po      3.237   2.516  -0.721    54.5%     yes
+  LIT     2.420   1.037  -1.383    65.5%        
+  UIT     2.634   0.974  -1.659    69.0%        
+  UIA     3.326   2.343  -0.983    65.5%        
+  LIA     3.598   2.282  -1.316    68.5%        
+  Ls      2.600   1.295  -1.305    48.0%        
+  Li      2.639   1.925  -0.713    47.5%        
+  Pog`    7.986   6.166  -1.820    72.0%        
+  Sn      2.496   1.578  -0.918    36.0%        
+
+================================================================
+E. Size of the Stage 2 corrections
+================================================================
+  max correction allowed (MAX_OFFSET): ~15.56 mm on this data
+  proposed correction: median 1.000 mm | 90th pct 6.957 mm | max 15.051 mm
+  rejected by the guard: 0.0%
+  Stage 1 error: median 1.87 mm | errors > max correction: 1.5%
+  Spearman(correction size, Stage 1 error): +0.584   (near 0 = Stage 2 does not 'see' where Stage 1 is wrong)
+
+Per-point data saved to esperimenti_leo/probabilistic/analisi_stage2_unife.csv
+Compare the ways of combining Stage 1 and Stage 2 with:  python strategie_stage2.py esperimenti_leo/probabilistic/analisi_stage2_unife.csv
