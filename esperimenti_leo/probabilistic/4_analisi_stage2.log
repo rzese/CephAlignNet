@@ -1,0 +1,116 @@
+Device: cuda | dir: esperimenti_leo/probabilistic | TTA: True
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=125, val_loss=0.161080, heatmap_mode=probabilistic, grid=centri, validation set 2e033d865b)
+Stage 2 loaded (ImageRefinementNet on the original radiograph, window 25.6 mm / 128 px, max offset 11.0 mm, epoch=29, val_loss=0.7829, validation set 2e033d865b)
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] validation: 280 images, fingerprint 2e033d865b
+Fixed Stage 2 mask: ['R', 'Co', 'Go', 'Po']
+  images processed: 2  images processed: 4  images processed: 6  images processed: 8  images processed: 10  images processed: 12  images processed: 14  images processed: 16  images processed: 18  images processed: 20  images processed: 22  images processed: 24  images processed: 26  images processed: 28  images processed: 30  images processed: 32  images processed: 34  images processed: 36  images processed: 38  images processed: 40  images processed: 42  images processed: 44  images processed: 46  images processed: 48  images processed: 50  images processed: 52  images processed: 54  images processed: 56  images processed: 58  images processed: 60  images processed: 62  images processed: 64  images processed: 66  images processed: 68  images processed: 70  images processed: 72  images processed: 74  images processed: 76  images processed: 78  images processed: 80  images processed: 82  images processed: 84  images processed: 86  images processed: 88  images processed: 90  images processed: 92  images processed: 94  images processed: 96  images processed: 98  images processed: 100  images processed: 102  images processed: 104  images processed: 106  images processed: 108  images processed: 110  images processed: 112  images processed: 114  images processed: 116  images processed: 118  images processed: 120  images processed: 122  images processed: 124  images processed: 126  images processed: 128  images processed: 130  images processed: 132  images processed: 134  images processed: 136  images processed: 138  images processed: 140  images processed: 142  images processed: 144  images processed: 146  images processed: 148  images processed: 150  images processed: 152  images processed: 154  images processed: 156  images processed: 158  images processed: 160  images processed: 162  images processed: 164  images processed: 166  images processed: 168  images processed: 170  images processed: 172  images processed: 174  images processed: 176  images processed: 178  images processed: 180  images processed: 182  images processed: 184  images processed: 186  images processed: 188  images processed: 190  images processed: 192  images processed: 194  images processed: 196  images processed: 198  images processed: 200  images processed: 202  images processed: 204  images processed: 206  images processed: 208  images processed: 210  images processed: 212  images processed: 214  images processed: 216  images processed: 218  images processed: 220  images processed: 222  images processed: 224  images processed: 226  images processed: 228  images processed: 230  images processed: 232  images processed: 234  images processed: 236  images processed: 238  images processed: 240  images processed: 242  images processed: 244  images processed: 246  images processed: 248  images processed: 250  images processed: 252  images processed: 254  images processed: 256  images processed: 258  images processed: 260  images processed: 262  images processed: 264  images processed: 266  images processed: 268  images processed: 270  images processed: 272  images processed: 274  images processed: 276  images processed: 278  images processed: 280
+
+================================================================
+A. MRE (mm) and accuracy — 6769 points, 280 images
+================================================================
+                                          MRE     <2mm  <2.5mm    <3mm    <4mm
+  Stage 1 only                          1.041    87.6%   92.3%   94.8%   97.6%
+  Stage 2 on the current fixed mask     1.068    87.1%   91.9%   94.5%   97.3%
+  Stage 2 on all landmarks              1.071    87.4%   91.6%   94.5%   97.2%
+  Ideal (Stage 2 only where it helps)   0.831    92.1%   95.0%   96.7%   98.4%
+  fixed mask = ['R', 'Co', 'Go', 'Po'] | 'Ideal' = upper bound for ANY selection rule
+  Stage 2 improves 47.4% of the points, worsens 52.6%, leaves -0.0% unchanged
+
+================================================================
+B. Stage 2 effect per quintile of sigma_tta
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.02-0.13     0.414   0.484  +0.070    39.3%        0.0%
+         2   0.13-0.20     0.689   0.710  +0.021    47.9%        0.1%
+         3   0.20-0.27     0.955   0.978  +0.023    48.1%        0.0%
+         4   0.27-0.40     1.250   1.249  -0.001    51.4%        0.1%
+         5   0.40-6.53     1.898   1.934  +0.036    50.4%        0.1%
+
+C. Apply Stage 2 only where sigma_tta > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  1.041    87.6%   92.3%   94.8%   97.6%
+       0.02      100.0%  1.071    87.4%   91.6%   94.5%   97.2%
+       0.23       50.0%  1.050    87.8%   91.7%   94.5%   97.3%
+       0.27       40.0%  1.048    87.8%   91.8%   94.5%   97.2%
+       0.33       30.0%  1.053    87.6%   91.8%   94.6%   97.3%
+       0.40       20.0%  1.049    87.7%   91.9%   94.7%   97.4%
+       0.56       10.0%  1.044    87.8%   92.1%   94.9%   97.5%
+       0.76        5.0%  1.035    87.9%   92.5%   95.1%   97.6%
+       1.68        1.0%  1.036    87.8%   92.5%   95.0%   97.7%
+  threshold chosen on even images: 0.75 mm -> on odd images MRE 1.028 (Stage 1) vs 1.025 (selective Stage 2), 4.2% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  1.028    88.0%   92.9%   95.4%   97.9%
+      selective Stage 2  1.025    88.4%   93.1%   95.6%   97.8%
+
+================================================================
+B. Stage 2 effect per quintile of sigma_heatmap
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.21-1.22     0.459   0.552  +0.093    37.7%        0.0%
+         2   1.22-1.82     0.802   0.862  +0.060    46.5%        0.0%
+         3   1.82-2.50     1.029   1.054  +0.025    49.7%        0.0%
+         4   2.50-3.63     1.249   1.221  -0.028    52.4%        0.0%
+         5   3.63-44.93    1.668   1.668  -0.000    50.9%        0.2%
+
+C. Apply Stage 2 only where sigma_heatmap > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  1.041    87.6%   92.3%   94.8%   97.6%
+       0.21      100.0%  1.071    87.4%   91.6%   94.5%   97.2%
+       2.15       50.0%  1.036    88.1%   92.2%   94.8%   97.4%
+       2.50       40.0%  1.036    87.9%   92.2%   94.9%   97.4%
+       3.00       30.0%  1.034    87.9%   92.2%   94.9%   97.3%
+       3.63       20.0%  1.041    87.7%   92.1%   94.8%   97.4%
+       4.90       10.0%  1.035    87.8%   92.3%   94.9%   97.6%
+       6.73        5.0%  1.036    87.8%   92.3%   95.0%   97.6%
+      13.78        1.0%  1.039    87.6%   92.3%   94.9%   97.7%
+  threshold chosen on even images: 6.75 mm -> on odd images MRE 1.028 (Stage 1) vs 1.025 (selective Stage 2), 3.9% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  1.028    88.0%   92.9%   95.4%   97.9%
+      selective Stage 2  1.025    88.1%   92.9%   95.6%   97.9%
+
+================================================================
+D. Per landmark (Stage 2 applied to every point)
+================================================================
+         err S1  err S2   delta improves in mask
+  A       1.010   0.977  -0.033    54.3%        
+  ANS     1.191   1.120  -0.071    55.0%        
+  B       0.994   1.025  +0.031    43.2%        
+  Me      0.553   0.525  -0.028    49.6%        
+  N       0.769   0.737  -0.032    53.2%        
+  Or      1.275   1.256  -0.018    49.6%        
+  Pog     0.680   0.629  -0.051    52.1%        
+  PNS     1.346   1.310  -0.036    52.5%        
+  Pn      0.682   0.752  +0.070    38.6%        
+  R       1.714   2.284  +0.570    29.0%     yes
+  S       0.572   0.627  +0.055    43.6%        
+  Ar      1.264   1.318  +0.054    47.1%        
+  Co      2.020   2.018  -0.002    46.4%     yes
+  Gn      0.511   0.550  +0.039    42.5%        
+  Go      1.477   1.696  +0.220    41.8%     yes
+  Po      1.586   1.581  -0.006    51.4%     yes
+  LPM     1.342   1.465  +0.124    42.0%        
+  LIT     0.647   0.629  -0.019    48.9%        
+  LMT     1.196   1.305  +0.109    44.9%        
+  UIT     0.504   0.490  -0.014    47.1%        
+  UIA     1.200   1.394  +0.194    41.5%        
+  LIA     1.212   1.299  +0.087    41.5%        
+  Ls      0.902   0.851  -0.051    51.8%        
+  Li      0.955   0.857  -0.098    53.2%        
+  Pog`    1.285   1.297  +0.011    45.7%        
+  Sn      0.730   0.645  -0.085    53.6%        
+
+================================================================
+E. Size of the Stage 2 corrections
+================================================================
+  max correction allowed (MAX_OFFSET): ~15.56 mm on this data
+  proposed correction: median 0.466 mm | 90th pct 1.413 mm | max 8.154 mm
+  rejected by the guard: 0.0%
+  Stage 1 error: median 0.70 mm | errors > max correction: 0.0%
+  Spearman(correction size, Stage 1 error): +0.450   (near 0 = Stage 2 does not 'see' where Stage 1 is wrong)
+
+Per-point data saved to esperimenti_leo/probabilistic/analisi_stage2.csv
+Compare the ways of combining Stage 1 and Stage 2 with:  python strategie_stage2.py esperimenti_leo/probabilistic/analisi_stage2.csv
