@@ -428,6 +428,36 @@ def geometric_consistency_loss(pred_pts, mask, gt_pts=None):
     return loss / max(n_terms, 1)
 
 
+def crop_campo_augmenta(img, pts, mask, pixel_size, margine_mm=5.0):
+    """
+    Field-of-view crop on the ORIGINAL image (before the resize to 512), to
+    simulate radiographs taken with a narrower field ("zoomed" images, like part
+    of the UNIFE tracings). Each side is cut by a random amount between 0 and the
+    largest cut that keeps every annotated landmark at least margine_mm inside
+    the image, so no landmark is lost; the sides are independent, so the aspect
+    ratio changes too. Not-annotated landmarks (mask 0) stay at [0, 0].
+    img [C, H, W], pts [N, 2] in pixels -> (cropped img, shifted pts).
+    """
+    C, H, W = img.shape
+    validi = mask > 0
+    if not validi.any():
+        return img, pts
+    m_px = margine_mm / float(pixel_size)
+    v = pts[validi]
+    x_min, y_min = v[:, 0].min().item() - m_px, v[:, 1].min().item() - m_px
+    x_max, y_max = v[:, 0].max().item() + m_px, v[:, 1].max().item() + m_px
+    x1 = int(random.uniform(0.0, max(0.0, x_min)))
+    y1 = int(random.uniform(0.0, max(0.0, y_min)))
+    x2 = int(math.ceil(random.uniform(min(float(W), x_max), float(W))))
+    y2 = int(math.ceil(random.uniform(min(float(H), y_max), float(H))))
+    if x2 - x1 < 2 or y2 - y1 < 2:
+        return img, pts
+    pts_out = pts.clone()
+    pts_out[validi, 0] -= x1
+    pts_out[validi, 1] -= y1
+    return img[:, y1:y2, x1:x2], pts_out
+
+
 def zoom_crop_augmenta(img, pts, mask, zoom_factor=2.2):
     """
     Multi-scale augmentation for hard landmarks: crops a region centered

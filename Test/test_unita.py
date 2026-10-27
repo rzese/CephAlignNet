@@ -72,6 +72,25 @@ def test_augmenta_coordinate_coerenti_con_immagine():
             assert abs(cx - c) < 2.5 and abs(cy - r) < 2.5, (cx, c, cy, r)
 
 
+def test_crop_campo_tiene_tutti_i_punti_e_li_sposta_con_l_immagine():
+    from src.heatmap_utils import crop_campo_augmenta
+    H, W, ps, margine = 600, 800, 0.1, 5.0
+    punti = torch.tensor([[200.0, 150.0], [600.0, 450.0], [0.0, 0.0]])
+    mask = torch.tensor([1.0, 1.0, 0.0])
+    img = torch.zeros(1, H, W)
+    img[0, 148:153, 198:203] = 1.0                       # 5x5 spot centred on pixel (200, 150)
+    for _ in range(50):
+        r, p = crop_campo_augmenta(img, punti, mask, ps, margine)
+        h, w = r.shape[1:]
+        assert h <= H and w <= W
+        for k in range(2):   # annotated points stay at least margine_mm inside
+            assert margine / ps - 1 <= p[k, 0] <= w - margine / ps + 1
+            assert margine / ps - 1 <= p[k, 1] <= h - margine / ps + 1
+        assert p[2].tolist() == [0.0, 0.0]
+        ys, xs = torch.nonzero(r[0] > 0.5, as_tuple=True)
+        assert abs(xs.float().mean() - p[0, 0]) < 0.5 and abs(ys.float().mean() - p[0, 1]) < 0.5
+
+
 def test_griglia_centri_codifica_decodifica_senza_bias():
     """Grid fix: target rendering and soft-argmax decoding agree."""
     pts = torch.rand(26, 2) * 0.8 + 0.1

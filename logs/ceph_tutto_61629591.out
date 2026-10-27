@@ -594,7 +594,147 @@ Stage 2 loaded (ImageRefinementNet on the original radiograph, window 25.6 mm / 
 [Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
 [crea_split] validation: 280 images, fingerprint 2e033d865b
 Fixed Stage 2 mask: ['R', 'Co', 'Go', 'Po']
-  images processed: 2  images processed: 4  images processed: 6  images processed: 8  images processed: 10  images processed: 12  images processed: 14  images processed: 16  images processed: 18  images processed: 20  images processed: 22  images processed: 24  images processed: 26  images processed: 28  images processed: 30  images processed: 32  images processed: 34  images processed: 36  images processed: 38  images processed: 40  images processed: 42  images processed: 44  images processed: 46  images processed: 48  images processed: 50  images processed: 52  images processed: 54  images processed: 56  images processed: 58  images processed: 60  images processed: 62  images processed: 64  images processed: 66  images processed: 68  images processed: 70  images processed: 72  images processed: 74  images processed: 76  images processed: 78  images processed: 80  images processed: 82  images processed: 84  images processed: 86  images processed: 88  images processed: 90  images processed: 92  images processed: 94  images processed: 96  images processed: 98  images processed: 100  images processed: 102  images processed: 104  images processed: 106  images processed: 108  images processed: 110  images processed: 112  images processed: 114  images processed: 116  images processed: 118  images processed: 120  images processed: 122  images processed: 124  images processed: 126  images processed: 128  images processed: 130  images processed: 132  images processed: 134  images processed: 136  images processed: 138  images processed: 140  images processed: 142  images processed: 144  images processed: 146  images processed: 148  images processed: 150  images processed: 152  images processed: 154  images processed: 156  images processed: 158  images processed: 160  images processed: 162  images processed: 164  images processed: 166  images processed: 168  images processed: 170  images processed: 172  images processed: 174  images processed: 176  images processed: 178  images processed: 180  images processed: 182  images processed: 184  images processed: 186  images processed: 188  images processed: 190  images processed: 192  images processed: 194  images processed: 196  images processed: 198  images processed: 200  images processed: 202  images processed: 204  images processed: 206  images processed: 208  images processed: 210  images processed: 212  images processed: 214  images processed: 216  images processed: 218  images processed: 220  images processed: 222  images processed: 224  images processed: 226  images processed: 228  images processed: 230  images processed: 232  images processed: 234  images processed: 236  images processed: 238  images processed: 240  images processed: 242  images processed: 244  images processed: 246  images processed: 248  images processed: 250  images processed: 252  images processed: 254  images processed: 256  images processed: 258  images processed: 260  images processed: 262  images processed: 264  images processed: 266  images processed: 268  images processed: 270  images processed: 272  images processed: 274  images processed: 276  images processed: 278  images processed: 280
+
+  images processed: 2
+  images processed: 4
+  images processed: 6
+  images processed: 8
+  images processed: 10
+  images processed: 12
+  images processed: 14
+  images processed: 16
+  images processed: 18
+  images processed: 20
+  images processed: 22
+  images processed: 24
+  images processed: 26
+  images processed: 28
+  images processed: 30
+  images processed: 32
+  images processed: 34
+  images processed: 36
+  images processed: 38
+  images processed: 40
+  images processed: 42
+  images processed: 44
+  images processed: 46
+  images processed: 48
+  images processed: 50
+  images processed: 52
+  images processed: 54
+  images processed: 56
+  images processed: 58
+  images processed: 60
+  images processed: 62
+  images processed: 64
+  images processed: 66
+  images processed: 68
+  images processed: 70
+  images processed: 72
+  images processed: 74
+  images processed: 76
+  images processed: 78
+  images processed: 80
+  images processed: 82
+  images processed: 84
+  images processed: 86
+  images processed: 88
+  images processed: 90
+  images processed: 92
+  images processed: 94
+  images processed: 96
+  images processed: 98
+  images processed: 100
+  images processed: 102
+  images processed: 104
+  images processed: 106
+  images processed: 108
+  images processed: 110
+  images processed: 112
+  images processed: 114
+  images processed: 116
+  images processed: 118
+  images processed: 120
+  images processed: 122
+  images processed: 124
+  images processed: 126
+  images processed: 128
+  images processed: 130
+  images processed: 132
+  images processed: 134
+  images processed: 136
+  images processed: 138
+  images processed: 140
+  images processed: 142
+  images processed: 144
+  images processed: 146
+  images processed: 148
+  images processed: 150
+  images processed: 152
+  images processed: 154
+  images processed: 156
+  images processed: 158
+  images processed: 160
+  images processed: 162
+  images processed: 164
+  images processed: 166
+  images processed: 168
+  images processed: 170
+  images processed: 172
+  images processed: 174
+  images processed: 176
+  images processed: 178
+  images processed: 180
+  images processed: 182
+  images processed: 184
+  images processed: 186
+  images processed: 188
+  images processed: 190
+  images processed: 192
+  images processed: 194
+  images processed: 196
+  images processed: 198
+  images processed: 200
+  images processed: 202
+  images processed: 204
+  images processed: 206
+  images processed: 208
+  images processed: 210
+  images processed: 212
+  images processed: 214
+  images processed: 216
+  images processed: 218
+  images processed: 220
+  images processed: 222
+  images processed: 224
+  images processed: 226
+  images processed: 228
+  images processed: 230
+  images processed: 232
+  images processed: 234
+  images processed: 236
+  images processed: 238
+  images processed: 240
+  images processed: 242
+  images processed: 244
+  images processed: 246
+  images processed: 248
+  images processed: 250
+  images processed: 252
+  images processed: 254
+  images processed: 256
+  images processed: 258
+  images processed: 260
+  images processed: 262
+  images processed: 264
+  images processed: 266
+  images processed: 268
+  images processed: 270
+  images processed: 272
+  images processed: 274
+  images processed: 276
+  images processed: 278
+  images processed: 280
 
 ================================================================
 A. MRE (mm) and accuracy — 6769 points, 280 images
@@ -699,7 +839,7 @@ E. Size of the Stage 2 corrections
   Stage 1 error: median 0.70 mm | errors > max correction: 0.0%
   Spearman(correction size, Stage 1 error): +0.450   (near 0 = Stage 2 does not 'see' where Stage 1 is wrong)
 
-Per-point data saved to esperimenti_leo/probabilistic/analisi_stage2.csv
+Per-point data saved to esperimenti_leo/probabilistic/analisi_st age2.csv
 Compare the ways of combining Stage 1 and Stage 2 with:  python strategie_stage2.py esperimenti_leo/probabilistic/analisi_stage2.csv
 6769 points, 280 images | objective: mean accuracy within 2, 2.5, 3, 4 mm | 2-fold CV over even/odd images
 

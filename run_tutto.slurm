@@ -4,6 +4,7 @@
 #   Stage 1 → (landmark_stats) → Stage 2 → evaluation + calibration
 #   → Stage 2 analysis + comparison of the ways of combining the two stages
 #   → final results on the official test sets (Aariz test, ISBI Test1, ISBI Test2)
+#     and on the external UNIFE tracings (data/tracciati, if present; never used in training)
 # Split: official (CEPH_SPLIT=ufficiale, default); CEPH_SPLIT=casuale only to
 # re-evaluate models trained with the old random 80/20 split.
 #
@@ -148,6 +149,12 @@ for MODE in $MODES; do
             python esegui_esperimento.py evaluate --dir "$DIR" --insieme "$T" 2>&1 | tee "$DIR/6_${T}.log"
         done
     fi
+    # External test: UNIFE tracings (evaluation + per-landmark CSV for the analyses)
+    if [ -d data/tracciati ]; then
+        echo "=== [$MODE] 5/5 External test UNIFE ==="
+        python esegui_esperimento.py evaluate --dir "$DIR" --insieme unife 2>&1 | tee "$DIR/6_unife.log"
+        python analisi_stage2.py --dir "$DIR" --insieme unife 2>&1 | tee "$DIR/7_analisi_unife.log"
+    fi
 done
 
 # Leave src/ clean: the statistics of each mode are in $OUT/<mode>/landmark_stats.py.
@@ -159,7 +166,7 @@ echo "Done — $(date)"
 for MODE in $MODES; do
     echo "--- $MODE ---"
     grep -E "^Global MRE|within 2.0mm|Spearman\(sigma|coverage on held-out" "$OUT/$MODE/3_evaluate.log" || true
-    for T in test_aariz test_isbi1 test_isbi2; do
+    for T in test_aariz test_isbi1 test_isbi2 unife; do
         if [ -f "$OUT/$MODE/6_${T}.log" ]; then
             echo "  [$T]"; grep -E "^Global MRE|within 2.0mm" "$OUT/$MODE/6_${T}.log" | tail -2 || true
         fi

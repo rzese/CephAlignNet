@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from functools import partial
 
 from src.datasets import Datasets, crea_split, impronta_split
-from src.heatmap_utils import (coordinate_a_heatmap, augmenta, zoom_crop_augmenta, combined_loss,
+from src.heatmap_utils import (coordinate_a_heatmap, augmenta, zoom_crop_augmenta, crop_campo_augmenta, combined_loss,
                                wing_loss_coord, geometric_consistency_loss, heatmap_a_coordinate,
                                HEATMAP_TRAIN_SIZE, SIGMA_PER_LANDMARK)
 from src.incertezza import SigmaAddestrabile, MODALITA_HEATMAP, TEMPERATURA_DECODIFICA
@@ -40,6 +40,10 @@ CONFIG = {
     "save_path":       "modello_heatmap.pth",
     "patience":        60,         # more patience for difficult landmarks
     "geo_loss_weight": 0.05,       # weight of the geometric consistency loss
+    # Field-of-view crop on the original image (robustness to "zoomed" radiographs):
+    # probability, and minimum distance (mm) kept between the landmarks and the new edges
+    "crop_campo_prob":      0.5,
+    "crop_campo_margine_mm": 5.0,
 
     # ── Heatmap / uncertainty ────────────────────────────────────────────
     # "fixed"         fixed-sigma Gaussian targets + Adaptive Wing (original behaviour)
@@ -57,16 +61,22 @@ CONFIG = {
 
 
 def collate_con_heatmap(batch, img_size=512, heatmap_size=256, sigma=4.0, training=False,
-                        genera_heatmap=True, griglia="centri"):
+                        genera_heatmap=True, griglia="centri", crop_campo_prob=0.0, crop_campo_margine_mm=5.0):
     """
     Collate function for the DataLoader: resizes images to img_size,
     normalizes landmark coordinates to [0, 1], zero-pads to 26 landmarks,
-    optionally applies the training augmentation pipeline (plus a 40%
-    chance of an extra zoom-crop on hard landmarks), and finally renders
+    optionally applies the training augmentation pipeline (a field-of-view
+    crop on the original image with probability crop_campo_prob, then augmenta,
+    plus a 40% chance of an extra zoom-crop on hard landmarks), and finally renders
     the target Gaussian heatmaps at heatmap_size (only for heatmap_mode
     "fixed": the other modes build their targets on the GPU, see calcola_loss).
     """
     immagini, punti, masks, bboxes, pixel_sizes = zip(*batch)
+    if training and crop_campo_prob > 0:
+        ritagliati = [crop_campo_augmenta(img, p, m, ps, crop_campo_margine_mm)
+                      if random.random() < crop_campo_prob else (img, p)
+                      for img, p, m, ps in zip(immagini, punti, masks, pixel_sizes)]
+        immagini, punti = zip(*ritagliati)
     imgs_r = [F.interpolate(img.unsqueeze(0), size=(img_size, img_size), mode="bilinear", align_corners=False).squeeze(0)
               for img in immagini]
     punti_pad, masks_pad = [], []
@@ -110,7 +120,8 @@ def prepara_dati(config):
     fisso = config["heatmap_mode"] == "fixed"
     comuni = dict(img_size=config["img_size"], heatmap_size=config["heatmap_size"], sigma=config["sigma"],
                   genera_heatmap=fisso, griglia=config["griglia"])
-    c_tr = partial(collate_con_heatmap, training=True, **comuni)
+    c_tr = partial(collate_con_heatmap, training=True, crop_campo_prob=config.get("crop_campo_prob", 0.0),
+                   crop_campo_margine_mm=config.get("crop_campo_margine_mm", 5.0), **comuni)
     c_va = partial(collate_con_heatmap, training=False, **comuni)
     return (DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=0, pin_memory=False, collate_fn=c_tr), DataLoader(val_ds,   batch_size=config["batch_size"], shuffle=False, num_workers=0, pin_memory=False, collate_fn=c_va))
 
@@ -194,6 +205,7 @@ def main():
     print(f"Device: {device} | Model: {MODEL_NAME} | heatmap_mode: {CONFIG['heatmap_mode']}")
     print(f"batch_size={CONFIG['batch_size']} | LR={CONFIG['learning_rate']:.1e} "
           f"| img_size={CONFIG['img_size']} | heatmap_size={CONFIG['heatmap_size']}")
+    print(f"Field-of-view crop: p={CONFIG.get('crop_campo_prob', 0.0)} | margin {CONFIG.get('crop_campo_margine_mm', 5.0)} mm")
 
     train_loader, val_loader = prepara_dati(CONFIG)
     model = ModelClass(num_landmarks=CONFIG["num_landmarks"]).to(device)

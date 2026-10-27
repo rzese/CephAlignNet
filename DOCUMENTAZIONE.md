@@ -342,6 +342,15 @@ ogni campione (segno di N_x − S_x): i vincoli valgono quindi anche sulle immag
 ribaltate.
 
 ### Augmentation
+- **`crop_campo_augmenta(img, pts, mask, pixel_size, margine_mm=5)`**: ritaglio del
+  campo di vista sull'immagine **originale**, prima del resize a 512, per rendere
+  lo Stage 1 robusto alle radiografie "zoommate" (campo stretto, come parte dei
+  tracciati UNIFE). Ogni lato viene tagliato di una quantità casuale fra 0 e il
+  massimo che lascia **tutti** i landmark annotati ad almeno 5 mm dal nuovo bordo;
+  i lati sono indipendenti, quindi cambia anche il rapporto d'aspetto. In training
+  si applica con p = 0.5 (`crop_campo_prob`, `crop_campo_margine_mm` nel CONFIG di
+  `train_heatmap.py`; p = 0 lo disattiva). Su 60 immagini di training la
+  larghezza mediana del campo passa da 194 a 158 mm.
 - **`augmenta(img, pts, mask)`**, applicata in training a ogni campione:
   - flip orizzontale (p = 0.5)
   - rotazione ±20° (sempre)
@@ -385,7 +394,8 @@ Passi:
    - resize a 512×512
    - normalizzazione delle coordinate in [0,1]
    - padding a 26 landmark
-   - in training: `augmenta`, più `zoom_crop_augmenta` con p = 0.4
+   - in training: `crop_campo_augmenta` con p = 0.5 (sull'immagine originale, prima
+     del resize), poi `augmenta`, più `zoom_crop_augmenta` con p = 0.4
    - creazione delle heatmap target
 3. **Loss totale**:
    `0.7·combined_loss + (0.3 − geo_w)·wing_loss_coord + geo_w·geometric_consistency_loss`
@@ -579,7 +589,7 @@ Tutti gli script vanno eseguiti dalla root della repo con `PYTHONPATH=.`.
 
 | File | Cosa fa |
 |---|---|
-| `test_unita.py` | **15 test automatici** su dati sintetici, senza dataset né GPU: rotazione TTA, coerenza di `augmenta`, griglia pixel, regression voting, sigma addestrabile, loss NLL, momenti della heatmap, conversione in mm, vincoli geometrici, Stage 2 e guardia, split, scala dei Tracciati, calibrazione conforme. Si lancia con `PYTHONPATH=. python Test/test_unita.py`, oppure con `pytest`. |
+| `test_unita.py` | **24 test automatici** su dati sintetici, senza dataset né GPU: rotazione TTA, coerenza di `augmenta`, griglia pixel, regression voting, sigma addestrabile, loss NLL, momenti della heatmap, conversione in mm, vincoli geometrici, Stage 2 e guardia, split, scala dei Tracciati, calibrazione conforme. Si lancia con `PYTHONPATH=. python Test/test_unita.py`, oppure con `pytest`. |
 | `verifica_mappatura_isbi.py` | Salva alcune immagini ISBI con i 19 punti etichettati secondo le due mappature, per scegliere quella giusta |
 | `test_caricamento tracciati.py` | Legge ogni caso dei Tracciati e riporta quanti landmark riconosce |
 | `test.py`, `test_isbi.py`, `test_datasets.py`, `test_tracciati.py` | Visualizzazione di un campione; aggiornati all'interfaccia attuale dei dataset |
