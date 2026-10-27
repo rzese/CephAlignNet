@@ -1,0 +1,206 @@
+[esegui_esperimento] step=evaluate dir=esperimenti_crop/probabilistic
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "num_landmarks": 26,
+ "batch_size": 2,
+ "val_split": 0.2,
+ "img_size": 512,
+ "heatmap_size": 256,
+ "stage1_path": "esperimenti_crop/probabilistic/modello_heatmap.pth",
+ "stage2_path": "esperimenti_crop/probabilistic/modello_refine.pth",
+ "sdr_thresholds_mm": [
+  2.0,
+  2.5,
+  3.0,
+  4.0
+ ],
+ "hrnet_channels": [
+  192,
+  384,
+  768,
+  1536
+ ],
+ "usa_tta": true,
+ "tta_angoli": [
+  -5.0,
+  -2.5,
+  0.0,
+  2.5,
+  5.0
+ ],
+ "selezione_stage2": "fusione",
+ "fusione_stage2": {
+  "c": 0.32,
+  "p": 2.0,
+  "floor_mm": 0.0
+ },
+ "soglia_sigma_tta_mm": 0.25,
+ "analizza_incertezza": true,
+ "copertura": 0.9,
+ "calibrazione_path": "esperimenti_crop/probabilistic/calibrazione_incertezza.json",
+ "insieme": "unife"
+}
+Device: cuda
+TTA: [-5.0, -2.5, 0.0, 2.5, 5.0] + flip + photometric
+Backbone: HRNet-W48 | Detected channels: [192, 384, 768, 1536]
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=149, val_loss=0.161481, heatmap_mode=probabilistic, grid=centri, validation set 068a762ae3)
+Stage 2 loaded (ImageRefinementNet on the original radiograph, window 25.6 mm / 128 px, max offset 11.0 mm, epoch=28, val_loss=0.7865, validation set 068a762ae3)
+Stage 2 mode: fusione (weighted average of Stage 1 and Stage 2, {'c': 0.32, 'p': 2.0, 'floor_mm': 0.0})
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[UnifeDataset] 200 cases | 0 skipped
+[crea_insieme] unife: 200 images (external test set)
+Evaluated on: unife (200 images)
+[ WARN:0@8.577] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@8.579] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@9.230] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@9.230] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@13.114] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@13.114] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@13.193] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@13.193] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@13.818] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@13.818] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@14.438] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@14.438] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@15.657] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@15.657] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@16.045] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@16.045] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@19.071] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@19.071] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@20.282] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@20.282] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@21.225] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@21.225] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@21.534] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@21.534] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+
+=======================================================
+STAGE 1 — heatmap only
+=======================================================
+Global MRE: 1.97 mm
+MRE skeletal    : 2.07 mm  (A,ANS,B,Me,N,Or,Pog,PNS,R,S,Ar,Co,Gn,Go,Po)
+MRE dental      : 1.59 mm  (LPM,LIT,LMT,UIT,UIA,LIA)
+MRE soft tissue : 1.99 mm  (Pn,Ls,Li,Pog`,Sn)
+
+SDR per threshold (mm):
+  within 2.0mm: 64.7%
+  within 2.5mm: 73.6%
+  within 3.0mm: 79.8%
+  within 4.0mm: 88.7%
+
+Landmark Cat              MRE  SDR2  SDR2.5  SDR3  SDR4
+--------------------------------------------------------------------
+  A     [skeletal    ]   1.56mm    80.5%    87.5%    90.0%    95.0%
+  ANS   [skeletal    ]   2.21mm    54.5%    68.0%    76.0%    86.0%
+  B     [skeletal    ]   1.37mm    82.0%    88.0%    93.5%    97.0%
+  Me    [skeletal    ]   2.63mm    31.5%    46.0%    65.0%    88.5%
+  N     [skeletal    ]   1.09mm    88.5%    92.5%    96.0%    99.5%
+  Or    [skeletal    ]   2.45mm    47.0%    58.5%    66.5%    83.5%
+  Pog   [skeletal    ]   1.41mm    79.0%    88.0%    91.0%    97.5%
+  PNS   [skeletal    ]   4.00mm    16.0%    24.0%    33.5%    56.5%
+  Pn    [soft tissue ]   1.21mm    87.5%    94.5%    99.0%    99.5%
+  R     [skeletal    ]  — no valid samples
+  S     [skeletal    ]   0.90mm    96.5%    99.0%   100.0%   100.0%
+  Ar    [skeletal    ]   1.58mm    76.5%    86.5%    92.0%    94.5%
+  Co    [skeletal    ]   2.69mm    33.5%    51.0%    64.5%    85.0%
+  Gn    [skeletal    ]  — no valid samples
+  Go    [skeletal    ]   2.61mm    49.0%    60.5%    69.0%    80.5%
+  Po    [skeletal    ]   2.45mm    47.0%    64.0%    74.5%    88.5%
+  LPM   [dental      ]  — no valid samples
+  LIT   [dental      ]   0.92mm    92.0%    95.0%    96.0%    97.0%
+  LMT   [dental      ]  — no valid samples
+  UIT   [dental      ]   0.99mm    91.0%    93.5%    95.0%    96.5%
+  UIA   [dental      ]   2.34mm    44.0%    58.5%    71.5%    87.5%
+  LIA   [dental      ]   2.11mm    55.5%    65.5%    76.0%    91.0%
+  Ls    [soft tissue ]   0.95mm    92.0%    96.0%    98.0%    99.0%
+  Li    [soft tissue ]   1.16mm    86.0%    96.0%    96.0%    98.5%
+  Pog`  [soft tissue ]   5.27mm     8.0%    13.5%    18.5%    31.0%
+  Sn    [soft tissue ]   1.38mm    86.0%    93.5%    95.0%    99.5%
+[ WARN:0@39.106] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@39.106] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@39.688] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@39.688] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@43.525] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@43.525] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@43.543] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@43.543] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@44.127] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@44.127] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@44.717] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@44.717] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@45.884] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@45.884] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@46.204] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@46.204] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@49.199] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@49.199] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@50.383] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@50.383] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@51.304] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@51.304] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+[ WARN:0@51.583] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "DateTime" contains null byte in value; value incorrectly truncated during reading due to implementation limitations
+[ WARN:0@51.583] global grfmt_tiff.cpp:123 TIFF_Warning TIFFFetchNormalTag: ASCII value for tag "Artist" does not end in null byte. Forcing it to be null
+
+=======================================================
+STAGE 1 + STAGE 2
+=======================================================
+Global MRE: 1.85 mm
+MRE skeletal    : 1.98 mm  (A,ANS,B,Me,N,Or,Pog,PNS,R,S,Ar,Co,Gn,Go,Po)
+MRE dental      : 1.44 mm  (LPM,LIT,LMT,UIT,UIA,LIA)
+MRE soft tissue : 1.86 mm  (Pn,Ls,Li,Pog`,Sn)
+
+SDR per threshold (mm):
+  within 2.0mm: 67.6%
+  within 2.5mm: 76.0%
+  within 3.0mm: 81.7%
+  within 4.0mm: 89.9%
+
+Landmark Cat              MRE  SDR2  SDR2.5  SDR3  SDR4
+--------------------------------------------------------------------
+  A     [skeletal    ]   1.21mm    90.0%    95.0%    97.0%    99.0%
+  ANS   [skeletal    ]   2.07mm    55.0%    69.0%    77.5%    87.5%
+  B     [skeletal    ]   1.27mm    82.0%    91.5%    95.5%    98.0%
+  Me    [skeletal    ]   2.71mm    26.5%    42.5%    63.5%    89.5%
+  N     [skeletal    ]   0.88mm    94.5%    96.0%    98.0%    99.5%
+  Or    [skeletal    ]   2.25mm    51.0%    65.0%    73.5%    86.5%
+  Pog   [skeletal    ]   1.31mm    82.5%    88.0%    93.5%    98.5%
+  PNS   [skeletal    ]   4.09mm    16.0%    25.5%    30.5%    56.0%
+  Pn    [soft tissue ]   0.91mm    97.0%   100.0%   100.0%   100.0%
+  R     [skeletal    ]  — no valid samples
+  S     [skeletal    ]   0.88mm    98.5%   100.0%   100.0%   100.0%
+  Ar    [skeletal    ]   1.36mm    85.5%    90.0%    93.5%    96.5%
+  Co    [skeletal    ]   2.81mm    31.0%    47.0%    61.5%    82.5%
+  Gn    [skeletal    ]  — no valid samples
+  Go    [skeletal    ]   2.52mm    48.5%    61.5%    71.0%    82.5%
+  Po    [skeletal    ]   2.38mm    49.0%    66.5%    77.0%    89.5%
+  LPM   [dental      ]  — no valid samples
+  LIT   [dental      ]   0.75mm    96.5%    97.0%    98.0%    98.5%
+  LMT   [dental      ]  — no valid samples
+  UIT   [dental      ]   0.83mm    95.0%    96.0%    98.0%    99.0%
+  UIA   [dental      ]   2.29mm    45.5%    62.5%    75.0%    89.0%
+  LIA   [dental      ]   1.91mm    60.0%    75.0%    81.5%    95.5%
+  Ls    [soft tissue ]   0.71mm    99.0%    99.5%    99.5%   100.0%
+  Li    [soft tissue ]   1.16mm    84.5%    94.0%    97.5%    99.5%
+  Pog`  [soft tissue ]   5.21mm     9.0%    14.5%    19.5%    32.0%
+  Sn    [soft tissue ]   1.29mm    90.0%    96.5%    97.0%    99.5%
+
+=======================================================
+IMPROVEMENT
+=======================================================
+MRE: 1.97 → 1.85 mm  (+0.11 mm)
+SDR 2.0mm: 64.7% → 67.6%  (+2.9%)
+SDR 2.5mm: 73.6% → 76.0%  (+2.4%)
+SDR 3.0mm: 79.8% → 81.7%  (+1.9%)
+SDR 4.0mm: 88.7% → 89.9%  (+1.2%)
+
+=======================================================
+UNCERTAINTY — radii calibrated on validation (target 90%)
+=======================================================
+[heatmap]  coverage on this set: 76.5% | mean radius 3.19 mm
+[tta]  coverage on this set: 72.1% | mean radius 4.30 mm
+[totale]  coverage on this set: 76.4% | mean radius 3.23 mm

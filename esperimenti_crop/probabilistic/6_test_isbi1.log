@@ -1,0 +1,158 @@
+[esegui_esperimento] step=evaluate dir=esperimenti_crop/probabilistic
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "num_landmarks": 26,
+ "batch_size": 2,
+ "val_split": 0.2,
+ "img_size": 512,
+ "heatmap_size": 256,
+ "stage1_path": "esperimenti_crop/probabilistic/modello_heatmap.pth",
+ "stage2_path": "esperimenti_crop/probabilistic/modello_refine.pth",
+ "sdr_thresholds_mm": [
+  2.0,
+  2.5,
+  3.0,
+  4.0
+ ],
+ "hrnet_channels": [
+  192,
+  384,
+  768,
+  1536
+ ],
+ "usa_tta": true,
+ "tta_angoli": [
+  -5.0,
+  -2.5,
+  0.0,
+  2.5,
+  5.0
+ ],
+ "selezione_stage2": "fusione",
+ "fusione_stage2": {
+  "c": 0.32,
+  "p": 2.0,
+  "floor_mm": 0.0
+ },
+ "soglia_sigma_tta_mm": 0.25,
+ "analizza_incertezza": true,
+ "copertura": 0.9,
+ "calibrazione_path": "esperimenti_crop/probabilistic/calibrazione_incertezza.json",
+ "insieme": "test_isbi1"
+}
+Device: cuda
+TTA: [-5.0, -2.5, 0.0, 2.5, 5.0] + flip + photometric
+Backbone: HRNet-W48 | Detected channels: [192, 384, 768, 1536]
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=149, val_loss=0.161481, heatmap_mode=probabilistic, grid=centri, validation set 068a762ae3)
+Stage 2 loaded (ImageRefinementNet on the original radiograph, window 25.6 mm / 128 px, max offset 11.0 mm, epoch=28, val_loss=0.7865, validation set 068a762ae3)
+Stage 2 mode: fusione (weighted average of Stage 1 and Stage 2, {'c': 0.32, 'p': 2.0, 'floor_mm': 0.0})
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] ufficiale split: training 820, validation 180 images, fingerprint 068a762ae3
+[crea_insieme] test_isbi1: 150 images
+Evaluated on: test_isbi1 (150 images)
+
+=======================================================
+STAGE 1 — heatmap only
+=======================================================
+Global MRE: 1.25 mm
+MRE skeletal    : 1.26 mm  (A,ANS,B,Me,N,Or,Pog,PNS,R,S,Ar,Co,Gn,Go,Po)
+MRE dental      : 0.72 mm  (LPM,LIT,LMT,UIT,UIA,LIA)
+MRE soft tissue : 1.48 mm  (Pn,Ls,Li,Pog`,Sn)
+
+SDR per threshold (mm):
+  within 2.0mm: 80.7%
+  within 2.5mm: 89.0%
+  within 3.0mm: 93.7%
+  within 4.0mm: 97.6%
+
+Landmark Cat              MRE  SDR2  SDR2.5  SDR3  SDR4
+--------------------------------------------------------------------
+  A     [skeletal    ]   2.56mm    36.7%    56.7%    70.0%    85.3%
+  ANS   [skeletal    ]   1.20mm    86.7%    95.3%    96.7%    98.7%
+  B     [skeletal    ]   1.61mm    69.3%    79.3%    87.3%    96.0%
+  Me    [skeletal    ]   0.74mm    97.3%    98.0%    99.3%    99.3%
+  N     [skeletal    ]   1.26mm    83.3%    91.3%    94.0%    97.3%
+  Or    [skeletal    ]   1.20mm    87.3%    92.7%    96.7%    98.7%
+  Pog   [skeletal    ]   0.79mm    96.0%    98.7%    99.3%   100.0%
+  PNS   [skeletal    ]   0.99mm    93.3%    96.7%    98.7%    99.3%
+  Pn    [soft tissue ]  — no valid samples
+  R     [skeletal    ]  — no valid samples
+  S     [skeletal    ]   0.57mm    98.7%    99.3%    99.3%    99.3%
+  Ar    [skeletal    ]   1.44mm    74.7%    86.7%    90.7%    96.0%
+  Co    [skeletal    ]  — no valid samples
+  Gn    [skeletal    ]   0.61mm    98.7%    99.3%   100.0%   100.0%
+  Go    [skeletal    ]   1.77mm    62.7%    76.0%    85.3%    94.7%
+  Po    [skeletal    ]   1.67mm    71.3%    79.3%    88.0%    96.0%
+  LPM   [dental      ]  — no valid samples
+  LIT   [dental      ]   0.84mm    91.3%    94.0%    96.7%    98.0%
+  LMT   [dental      ]  — no valid samples
+  UIT   [dental      ]   0.59mm    95.3%    98.0%    99.3%    99.3%
+  UIA   [dental      ]  — no valid samples
+  LIA   [dental      ]  — no valid samples
+  Ls    [soft tissue ]   2.19mm    38.7%    74.7%    92.0%    98.7%
+  Li    [soft tissue ]   1.47mm    77.3%    88.0%    96.0%   100.0%
+  Pog`  [soft tissue ]   1.13mm    85.3%    93.3%    95.3%    98.7%
+  Sn    [soft tissue ]   1.12mm    88.7%    93.3%    95.3%    98.7%
+
+=======================================================
+STAGE 1 + STAGE 2
+=======================================================
+Global MRE: 1.11 mm
+MRE skeletal    : 1.16 mm  (A,ANS,B,Me,N,Or,Pog,PNS,R,S,Ar,Co,Gn,Go,Po)
+MRE dental      : 0.58 mm  (LPM,LIT,LMT,UIT,UIA,LIA)
+MRE soft tissue : 1.22 mm  (Pn,Ls,Li,Pog`,Sn)
+
+SDR per threshold (mm):
+  within 2.0mm: 85.5%
+  within 2.5mm: 92.1%
+  within 3.0mm: 95.3%
+  within 4.0mm: 98.4%
+
+Landmark Cat              MRE  SDR2  SDR2.5  SDR3  SDR4
+--------------------------------------------------------------------
+  A     [skeletal    ]   1.99mm    56.0%    70.7%    82.7%    93.3%
+  ANS   [skeletal    ]   1.12mm    89.3%    92.7%    94.0%    98.7%
+  B     [skeletal    ]   1.44mm    74.0%    83.3%    92.0%    97.3%
+  Me    [skeletal    ]   0.73mm    98.0%    98.7%    99.3%    99.3%
+  N     [skeletal    ]   1.13mm    88.0%    92.0%    92.7%    97.3%
+  Or    [skeletal    ]   1.18mm    85.3%    93.3%    96.0%   100.0%
+  Pog   [skeletal    ]   0.79mm    94.7%    98.0%    99.3%   100.0%
+  PNS   [skeletal    ]   0.88mm    93.3%    97.3%    98.7%    99.3%
+  Pn    [soft tissue ]  — no valid samples
+  R     [skeletal    ]  — no valid samples
+  S     [skeletal    ]   0.54mm    98.7%    98.7%    99.3%    99.3%
+  Ar    [skeletal    ]   1.39mm    74.0%    88.0%    91.3%    96.0%
+  Co    [skeletal    ]  — no valid samples
+  Gn    [skeletal    ]   0.64mm    98.0%    99.3%    99.3%   100.0%
+  Go    [skeletal    ]   1.71mm    62.7%    77.3%    88.0%    95.3%
+  Po    [skeletal    ]   1.59mm    73.3%    82.7%    88.7%    96.0%
+  LPM   [dental      ]  — no valid samples
+  LIT   [dental      ]   0.65mm    94.0%    96.0%    98.0%    99.3%
+  LMT   [dental      ]  — no valid samples
+  UIT   [dental      ]   0.52mm    96.7%    97.3%    98.7%    99.3%
+  UIA   [dental      ]  — no valid samples
+  LIA   [dental      ]  — no valid samples
+  Ls    [soft tissue ]   1.74mm    75.3%    92.7%    98.7%    99.3%
+  Li    [soft tissue ]   1.16mm    90.0%    99.3%    99.3%   100.0%
+  Pog`  [soft tissue ]   1.05mm    89.3%    95.3%    96.7%    99.3%
+  Sn    [soft tissue ]   0.93mm    94.7%    96.7%    97.3%    99.3%
+
+=======================================================
+IMPROVEMENT
+=======================================================
+MRE: 1.25 → 1.11 mm  (+0.14 mm)
+SDR 2.0mm: 80.7% → 85.5%  (+4.9%)
+SDR 2.5mm: 89.0% → 92.1%  (+3.1%)
+SDR 3.0mm: 93.7% → 95.3%  (+1.6%)
+SDR 4.0mm: 97.6% → 98.4%  (+0.8%)
+
+=======================================================
+UNCERTAINTY — radii calibrated on validation (target 90%)
+=======================================================
+[heatmap]  coverage on this set: 87.1% | mean radius 2.54 mm
+[tta]  coverage on this set: 87.2% | mean radius 2.37 mm
+[totale]  coverage on this set: 87.0% | mean radius 2.53 mm

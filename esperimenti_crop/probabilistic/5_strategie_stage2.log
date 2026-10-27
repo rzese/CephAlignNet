@@ -1,0 +1,16 @@
+4470 points, 180 images | objective: mean accuracy within 2, 2.5, 3, 4 mm | 2-fold CV over even/odd images
+
+strategy                              MRE    <2mm  <2.5mm    <3mm    <4mm mean acc   parameters (chosen on even images)
+-----------------------------------------------------------------------------------------------------------------------
+Stage 1 only                        1.069   86.8%   92.2%   94.8%   97.4%   92.80%   
+Stage 2 everywhere                  1.089   86.8%   91.4%   93.6%   96.8%   92.16%   
+threshold on sigma_tta              1.073   86.8%   92.2%   94.8%   97.4%   92.79%   sigma_tta > 1.35 mm
+fusion (weighted average)           1.007   88.3%   92.7%   94.9%   97.6%   93.38%   c=0.63 p=1 floor=0.4 mm
+classifier                          1.018   88.0%   92.7%   94.8%   97.5%   93.24%   switch if p > 0.50
+Stage 2 everywhere + S2 TTA         1.080   86.9%   91.5%   93.6%   96.8%   92.21%   
+threshold on sigma_tta + S2 TTA     1.073   86.8%   92.2%   94.8%   97.3%   92.76%   sigma_tta > 1.35 mm
+fusion (weighted average) + S2 TTA  1.006   88.2%   92.8%   94.9%   97.6%   93.38%   c=0.50 p=2 floor=0.4 mm
+classifier + S2 TTA                 1.020   87.9%   92.5%   94.8%   97.5%   93.20%   switch if p > 0.60
+-----------------------------------------------------------------------------------------------------------------------
+Ideal (best of the two)             0.827   91.5%   95.0%   96.5%   98.5%   95.35%   unreachable upper bound
+Ideal (best of the two) + S2 TTA    0.828   91.5%   95.0%   96.5%   98.4%   95.34%   unreachable upper bound
