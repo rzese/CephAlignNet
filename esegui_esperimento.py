@@ -7,14 +7,32 @@ modes without editing them. Every output (checkpoints, calibration) goes to
     python esegui_esperimento.py heatmap  --mode fixed --dir esperimenti/fixed
     python esegui_esperimento.py refine   --dir esperimenti/fixed
     python esegui_esperimento.py evaluate --dir esperimenti/fixed
+    python esegui_esperimento.py refine   --dir esperimenti_s2/B --variante B
+
+The evaluate step combines the two stages with the fusion parameters of
+<dir>/parametri_stage2.py when that file exists (a Stage 2 variant needs its
+own, re-fitted with strategie_stage2.py --salva), otherwise with
+src/parametri_stage2.py.
 
 Run each step in its own process: train_refine / evaluate_refine read the
 Stage 2 mask from src/landmark_stats.py at import time, and that file is
 regenerated at the end of the heatmap step.
 """
 import argparse
+import importlib.util
 import json
 import os
+
+
+def parametri_fusione(cartella):
+    """Fusion parameters of <cartella>/parametri_stage2.py, or None."""
+    path = os.path.join(cartella, "parametri_stage2.py")
+    if not os.path.exists(path):
+        return None
+    spec = importlib.util.spec_from_file_location("parametri_stage2_esperimento", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return path, mod
 
 
 def main(argv=None):
@@ -32,6 +50,8 @@ def main(argv=None):
     ap.add_argument("--insieme", default="validation",
                     choices=["validation", "test", "test_aariz", "test_isbi1", "test_isbi2", "unife"],
                     help="evaluate step: images to evaluate on (test sets: official split only)")
+    ap.add_argument("--variante", choices=["base", "A", "B"],
+                    help="refine step: Stage 2 variant (see VARIANTI in train_refine.py; default: CONFIG)")
     a = ap.parse_args(argv)
 
     os.makedirs(a.dir, exist_ok=True)
@@ -48,6 +68,8 @@ def main(argv=None):
         import train_refine as m
         m.CONFIG.update(stage1_path=stage1, save_path=stage2, tracciati_path=a.tracciati,
                         tracciati_tabella_scale=a.tabella_scale)
+        if a.variante:
+            m.applica_variante(m.CONFIG, a.variante)
     else:
         import evaluate_refine as m
         m.CONFIG.update(stage1_path=stage1, stage2_path=stage2,
@@ -55,6 +77,12 @@ def main(argv=None):
         if a.no_tta:
             m.CONFIG["usa_tta"] = False
         m.CONFIG["insieme"] = a.insieme
+        par = parametri_fusione(a.dir)
+        if par:
+            path, mod = par
+            m.CONFIG.update(selezione_stage2=mod.SELEZIONE_STAGE2, fusione_stage2=dict(mod.FUSIONE_STAGE2),
+                            soglia_sigma_tta_mm=mod.SOGLIA_SIGMA_TTA_MM)
+            print(f"[esegui_esperimento] fusion parameters from {path}: {mod.FUSIONE_STAGE2}")
 
     if a.batch_size:
         m.CONFIG["batch_size"] = a.batch_size

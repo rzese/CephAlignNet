@@ -14,7 +14,7 @@ from torchvision.ops import roi_align
 
 from src.datasets import registra_impronta_modello
 from src.model_hrnet import HRNetLandmark
-from src.model_refine import (RefinementNet, ImageRefinementNet, MAX_OFFSET, ROI_OUTPUT_SIZE,
+from src.model_refine import (RefinementNet, ImageRefinementNet, crea_stage2_immagine, MAX_OFFSET, ROI_OUTPUT_SIZE,
                               ROI_HALF_SIZE, REFINE_LANDMARK_MASK)
 from src.heatmap_utils import (heatmap_a_coordinate, regression_voting, ruota_coordinate,
                                HEATMAP_TRAIN_SIZE)
@@ -100,8 +100,9 @@ def carica_stage2(path, num_landmarks, device):
     """
     Loads a Stage 2 checkpoint of either kind (returns None if the file does
     not exist):
-      - tipo_input "immagine": ImageRefinementNet, crops of the original
-        radiograph (current train_refine.py);
+      - tipo_input "immagine": crops of the original radiograph (train_refine.py),
+        ImageRefinementNet (arch_stage2 "base", also for checkpoints without the
+        key) or ImageRefinementUNet (arch_stage2 "unet", pretrained encoder);
       - tipo_input "feature" (old checkpoints): RefinementNet on crops of the
         Stage 1 feature map, rebuilt with the in_channels and max_offset it
         was trained with.
@@ -112,11 +113,14 @@ def carica_stage2(path, num_landmarks, device):
         return None
     ckpt = torch.load(path, map_location=device, weights_only=False)
     if ckpt.get("tipo_input") == "immagine":
-        stage2 = ImageRefinementNet(num_landmarks=num_landmarks, finestra_mm=ckpt["finestra_mm"],
-                                    crop_px=ckpt["crop_px"], max_offset_mm=ckpt["max_offset_mm"]).to(device)
+        arch = ckpt.get("arch_stage2", "base")
+        # pretrained=False: the weights come from the checkpoint (compute nodes are offline)
+        stage2 = crea_stage2_immagine(arch, num_landmarks=num_landmarks, finestra_mm=ckpt["finestra_mm"],
+                                      crop_px=ckpt["crop_px"], max_offset_mm=ckpt["max_offset_mm"],
+                                      encoder=ckpt.get("encoder", "resnet34"), pretrained=False).to(device)
         stage2.load_state_dict(ckpt["model_state_dict"])
         stage2.eval()
-        print(f"Stage 2 loaded (ImageRefinementNet on the original radiograph, window "
+        print(f"Stage 2 loaded ({type(stage2).__name__} on the original radiograph, window "
               f"{stage2.finestra_mm} mm / {stage2.crop_px} px, max offset {stage2.max_offset_mm} mm, "
               f"epoch={ckpt.get('epoca', '?')}, val_loss={ckpt.get('val_loss', 0):.4f}, "
               f"validation set {ckpt.get('split_impronta') or 'unknown (old checkpoint)'})")

@@ -18,6 +18,17 @@ fixed seed, so its numbers are comparable across epochs.
 
 Loss: Huber on the predicted offset (mm) + peso_nll * NLL of the true position
 under the crop heatmap.
+
+Variants (VARIANTI, chosen with  esegui_esperimento.py refine --variante <name>):
+  "base"  the original Stage 2 (ImageRefinementNet, 25.6 mm / 128 px crop,
+          32 x 32 output, synthetic errors uniform in [0.5, 11] mm)
+  "A"     ImageRefinementUNet: pretrained resnet34 encoder + U-Net decoder,
+          38.4 mm / 256 px crop (0.15 mm/px), 128 x 128 output (0.3 mm cells),
+          errors up to 15 mm, crop scale jitter +-10% (pixel-size errors)
+  "B"     A + "hard" starting positions: 20% of the crops start on another
+          landmark of the same image (within vicino_max_mm), 20% of the dental
+          tips start one tooth away along the occlusal plane (7-11 mm). These are
+          the real Stage 1 failures that random displacements do not reproduce.
 """
 import random
 
@@ -30,7 +41,7 @@ from torch.utils.data import DataLoader
 from src.datasets import Datasets, crea_split, impronta_split
 from src.heatmap_utils import nll_heatmap_loss, ruota_coordinate
 from src.inferenza import ritaglia_originali
-from src.model_refine import ImageRefinementNet
+from src.model_refine import crea_stage2_immagine
 
 CONFIG = {
     "aariz_path":     "data/Aariz",
@@ -56,7 +67,44 @@ CONFIG = {
     "rotazione_max_gradi": 10.0,
     # ── loss ──
     "peso_nll":       1.0,
+    # ── architecture ("base" = ImageRefinementNet, "unet" = ImageRefinementUNet) ──
+    "arch":           "base",
+    "encoder":        "resnet34",   # unet only (timm name, ImageNet weights)
+    "pretrained":     True,         # unet only
+    # ── extra augmentation / hard starting positions (0 = off) ──
+    "scala_max":      0.0,          # crop scale jitter: mm/px multiplied by 1 +- scala_max
+    "prob_vicino":    0.0,          # start on another landmark of the same image
+    "vicino_max_mm":  15.0,
+    "prob_dente":     0.0,          # dental tips: start one tooth away along the occlusal plane
+    "dente_mm":       (7.0, 11.0),
+    # ── memory: crops per forward/backward pass (bf16 autocast on GPU) ──
+    "max_crop_per_passo": 0,        # 0 = all the crops of the batch at once
+    "amp":            False,
+    "variante":       "base",
 }
+
+_VARIANTE_A = {
+    "arch": "unet", "encoder": "resnet34", "pretrained": True,
+    "finestra_mm": 38.4, "crop_px": 256, "max_offset_mm": 15.0, "rumore_max_mm": 15.0,
+    "scala_max": 0.10, "learning_rate": 3e-4, "max_crop_per_passo": 128, "amp": True,
+}
+VARIANTI = {
+    "base": {},
+    "A": _VARIANTE_A,
+    "B": {**_VARIANTE_A, "prob_vicino": 0.2, "prob_dente": 0.2},
+}
+
+# Landmark indices (order of NOMI in train_heatmap.py)
+_S, _N, _LPM, _LIT, _LMT, _UIT = 10, 4, 16, 17, 18, 19
+PUNTE_DENTALI = (_LPM, _LIT, _LMT, _UIT)   # tips that can be confused with the next tooth
+
+
+def applica_variante(config, nome):
+    """Updates config with the settings of variant nome (see VARIANTI)."""
+    if nome not in VARIANTI:
+        raise ValueError(f"unknown Stage 2 variant '{nome}', expected one of {list(VARIANTI)}")
+    config.update(VARIANTI[nome])
+    config["variante"] = nome
 
 
 def collate_originali(batch):
@@ -86,25 +134,98 @@ def errore_sintetico(K, config, generator=None):
     return torch.stack([raggio * torch.cos(angolo), raggio * torch.sin(angolo)], dim=1)
 
 
+def _uniforme(a, b, generator=None):
+    return a + (b - a) * torch.rand(1, generator=generator).item()
+
+
+def direzione_occlusale(p_mm, m):
+    """Unit vector (mm frame) from the incisors towards the molars of one image,
+    or None. p_mm [N, 2] landmarks in mm, m [N] mask. Without the molar, the
+    occlusal plane is taken as horizontal, pointing backwards (from N towards S)."""
+    incisivi = [i for i in (_UIT, _LIT) if m[i] > 0]
+    if incisivi and m[_LMT] > 0:
+        v = p_mm[_LMT] - p_mm[incisivi].mean(dim=0)
+    elif m[_S] > 0 and m[_N] > 0:
+        v = torch.tensor([float(torch.sign(p_mm[_S, 0] - p_mm[_N, 0])) or 1.0, 0.0])
+    else:
+        return None
+    n = v.norm()
+    return v / n if n > 1e-6 else None
+
+
+def errori_partenza(punti_mm, masks, b_idx, l_idx, config, generator=None):
+    """
+    [K, 2] starting error in mm (start position - true position) of every crop:
+      - with probability prob_vicino: the position of another annotated landmark
+        of the same image, between 2 and vicino_max_mm away (+ 0.5 mm jitter);
+      - dental tips, with probability prob_dente: one tooth away along the
+        occlusal plane (dente_mm, either direction, +-1 mm across);
+      - otherwise (or when the above is not possible): the uniform synthetic
+        error of errore_sintetico.
+    Hard starts whose target would fall too close to the crop border fall back
+    to the uniform error.
+    """
+    K = len(b_idx)
+    err = errore_sintetico(K, config, generator)
+    pv, pd = config.get("prob_vicino", 0.0), config.get("prob_dente", 0.0)
+    if pv <= 0 and pd <= 0:
+        return err
+    limite = 0.5 * config["finestra_mm"] - 1.5
+    direzioni = {}
+    for k in range(K):
+        b, l = int(b_idx[k]), int(l_idx[k])
+        p, m = punti_mm[b], masks[b]
+        u = torch.rand(1, generator=generator).item()
+        nuovo = None
+        if u < pv:
+            dist = (p - p[l]).norm(dim=1)
+            cand = ((m > 0) & (dist >= 2.0) & (dist <= config.get("vicino_max_mm", 15.0))).nonzero().flatten()
+            cand = cand[cand != l]
+            if len(cand):
+                j = int(cand[torch.randint(len(cand), (1,), generator=generator)])
+                nuovo = p[j] - p[l] + 0.5 * torch.randn(2, generator=generator)
+        elif u < pv + pd and l in PUNTE_DENTALI:
+            if b not in direzioni:
+                direzioni[b] = direzione_occlusale(p, m)
+            d = direzioni[b]
+            if d is not None:
+                lo, hi = config.get("dente_mm", (7.0, 11.0))
+                segno = 1.0 if torch.rand(1, generator=generator).item() < 0.5 else -1.0
+                perp = torch.tensor([-d[1], d[0]])
+                nuovo = segno * _uniforme(lo, hi, generator) * d + _uniforme(-1.0, 1.0, generator) * perp
+        if nuovo is not None and nuovo.abs().max() <= limite:
+            err[k] = nuovo
+    return err
+
+
 def genera_batch(immagini, punti, masks, ps, config, device, training, generator=None):
     """
     Builds the Stage 2 samples of a batch: one crop per annotated landmark,
-    centered on (true position + synthetic error).
+    centered on (true position + starting error, see errori_partenza).
+    In training, with scala_max > 0, every image is cropped as if its pixel size
+    were off by a factor in 1 +- scala_max (the target is scaled with it).
     Returns crops [K,1,S,S], landmark indices [K], target offsets [K,2] in mm
     (from the crop center to the true point), or None if the batch is empty.
     """
     b_idx, l_idx = (masks == 1).nonzero(as_tuple=True)
     if len(b_idx) == 0:
         return None
-    K = len(b_idx)
-    errore_mm = errore_sintetico(K, config, generator)
     dims = torch.tensor([[im.shape[2], im.shape[1]] for im in immagini], dtype=torch.float32)
+    punti_mm = punti * ps.view(-1, 1, 1)
+    errore_mm = errori_partenza(punti_mm, masks, b_idx, l_idx, config, generator)
     mm_per_unita = dims[b_idx] * ps[b_idx].view(-1, 1)                 # mm per normalized unit
     vero = punti[b_idx, l_idx] / dims[b_idx]                             # normalized
     partenza = vero + errore_mm / mm_per_unita
     target_mm = -errore_mm
 
-    crops = ritaglia_originali(immagini, partenza.to(device), b_idx.to(device), ps,
+    ps_crop = ps
+    a = config.get("scala_max", 0.0)
+    if training and a > 0:
+        fattore = 1.0 + (2 * torch.rand(len(immagini), generator=generator) - 1) * a
+        ps_crop = ps * fattore                     # the crop covers finestra_mm / fattore real mm
+        target_mm = target_mm * fattore[b_idx].view(-1, 1)
+
+    crops = ritaglia_originali(immagini, partenza.to(device), b_idx.to(device), ps_crop,
                                config["finestra_mm"], config["crop_px"])
     if training:
         crops, target_mm = augmenta_crop(crops, target_mm.to(device), config)
@@ -132,13 +253,21 @@ def augmenta_crop(crops, target_mm, config):
 
 
 def calcola_loss(model, crops, l_idx, target_mm, config):
-    pred_mm, logits = model(crops, l_idx)
+    with torch.autocast("cuda", dtype=torch.bfloat16, enabled=config.get("amp", False) and crops.is_cuda):
+        pred_mm, logits = model(crops, l_idx)
+    pred_mm, logits = pred_mm.float(), logits.float()
     t_norm = (target_mm / config["finestra_mm"] + 0.5).clamp(0, 1)
     loss = F.huber_loss(pred_mm, target_mm, delta=1.0)
     if config["peso_nll"] > 0:
         uno = torch.ones(len(l_idx), 1, device=crops.device)
         loss = loss + config["peso_nll"] * nll_heatmap_loss(logits.unsqueeze(1), t_norm.unsqueeze(1), uno)
     return loss, pred_mm
+
+
+def _blocchi(K, config):
+    """Slices of at most max_crop_per_passo crops (one slice if 0)."""
+    passo = config.get("max_crop_per_passo", 0) or K
+    return [slice(i, min(i + passo, K)) for i in range(0, K, passo)]
 
 
 def train_un_epoca(model, loader, optimizer, device, config):
@@ -148,12 +277,17 @@ def train_un_epoca(model, loader, optimizer, device, config):
         lotto = genera_batch(immagini, punti, masks, ps, config, device, training=True)
         if lotto is None:
             continue
-        loss, _ = calcola_loss(model, *lotto, config)
+        crops, l_idx, target_mm = lotto
+        K = len(l_idx)
         optimizer.zero_grad()
-        loss.backward()
+        loss_lotto = 0.0
+        for sl in _blocchi(K, config):           # gradient accumulated over the slices
+            loss, _ = calcola_loss(model, crops[sl], l_idx[sl], target_mm[sl], config)
+            (loss * (sl.stop - sl.start) / K).backward()
+            loss_lotto += loss.item() * (sl.stop - sl.start) / K
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
         optimizer.step()
-        tot += loss.item(); n += 1
+        tot += loss_lotto; n += 1
     return tot / max(n, 1)
 
 
@@ -169,10 +303,11 @@ def valida(model, loader, device, config):
             if lotto is None:
                 continue
             crops, l_idx, target_mm = lotto
-            loss, pred_mm = calcola_loss(model, crops, l_idx, target_mm, config)
-            tot += loss.item(); n += 1
-            prima.append(target_mm.norm(dim=1).cpu())
-            dopo.append((target_mm - pred_mm).norm(dim=1).cpu())
+            for sl in _blocchi(len(l_idx), config):
+                loss, pred_mm = calcola_loss(model, crops[sl], l_idx[sl], target_mm[sl], config)
+                tot += loss.item(); n += 1
+                prima.append(target_mm[sl].norm(dim=1).cpu())
+                dopo.append((target_mm[sl] - pred_mm).norm(dim=1).cpu())
     prima, dopo = torch.cat(prima), torch.cat(dopo)
     return tot / max(n, 1), prima, dopo
 
@@ -180,6 +315,10 @@ def valida(model, loader, device, config):
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
+    print(f"Stage 2 variant '{CONFIG.get('variante', 'base')}': arch {CONFIG['arch']}"
+          + (f" ({CONFIG['encoder']}, pretrained={CONFIG['pretrained']})" if CONFIG["arch"] == "unet" else "")
+          + f" | scale jitter +-{CONFIG.get('scala_max', 0.0):.0%} | hard starts: neighbour landmark "
+          f"{CONFIG.get('prob_vicino', 0.0):.0%}, next tooth {CONFIG.get('prob_dente', 0.0):.0%}")
     print(f"Stage 2 on the original radiograph: window {CONFIG['finestra_mm']} mm "
           f"({CONFIG['finestra_mm'] / CONFIG['crop_px']:.2f} mm/px), max offset {CONFIG['max_offset_mm']} mm, "
           f"synthetic error distance uniform in [{CONFIG['rumore_min_mm']}, {CONFIG['rumore_max_mm']}] mm")
@@ -187,8 +326,10 @@ def main():
         print("[WARN] rumore_max_mm is close to the crop border: enlarge finestra_mm")
 
     train_loader, val_loader = prepara_dati(CONFIG)
-    model = ImageRefinementNet(num_landmarks=CONFIG["num_landmarks"], finestra_mm=CONFIG["finestra_mm"],
-                               crop_px=CONFIG["crop_px"], max_offset_mm=CONFIG["max_offset_mm"]).to(device)
+    model = crea_stage2_immagine(CONFIG["arch"], num_landmarks=CONFIG["num_landmarks"],
+                                 finestra_mm=CONFIG["finestra_mm"], crop_px=CONFIG["crop_px"],
+                                 max_offset_mm=CONFIG["max_offset_mm"], encoder=CONFIG["encoder"],
+                                 pretrained=CONFIG["pretrained"]).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=CONFIG["learning_rate"], weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=8, factor=0.5, min_lr=1e-6)
 
@@ -209,7 +350,10 @@ def main():
                 "optimizer_state_dict": optimizer.state_dict(),
                 "val_loss": val_loss,
                 "config": CONFIG,
-                "arch": "ImageRefinementNet",
+                "arch": type(model).__name__,
+                "arch_stage2": CONFIG["arch"],
+                "encoder": CONFIG["encoder"],
+                "variante": CONFIG.get("variante", "base"),
                 "tipo_input": "immagine",
                 "finestra_mm": CONFIG["finestra_mm"],
                 "crop_px": CONFIG["crop_px"],

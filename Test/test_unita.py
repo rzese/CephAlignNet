@@ -516,6 +516,71 @@ def test_analisi_incertezza_copertura_conforme():
     assert abs(r["fonti"]["tta"]["spearman"]) < 0.1          # unrelated source: no correlation
 
 
+def test_stage2_unet_forma_e_caricamento():
+    from src.model_refine import ImageRefinementUNet
+    from src.inferenza import carica_stage2
+    m = ImageRefinementUNet(26, finestra_mm=38.4, crop_px=64, max_offset_mm=15.0, pretrained=False).eval()
+    off, logits = m(torch.randn(3, 1, 64, 64), torch.tensor([0, 5, 25]))
+    assert off.shape == (3, 2) and logits.shape == (3, 32, 32)      # output at half the crop resolution
+    assert off.abs().max() <= 38.4 / 2
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "s2.pth")
+        torch.save({"model_state_dict": m.state_dict(), "tipo_input": "immagine", "arch_stage2": "unet",
+                    "encoder": "resnet34", "finestra_mm": 38.4, "crop_px": 64, "max_offset_mm": 15.0}, path)
+        caricato = carica_stage2(path, 26, "cpu")
+    x = torch.randn(2, 1, 64, 64)
+    assert torch.allclose(caricato(x, torch.tensor([1, 2]))[0], m(x, torch.tensor([1, 2]))[0], atol=1e-5)
+
+
+def test_partenze_difficili_vicino_e_dente():
+    import train_refine as tr
+    cfg = dict(tr.CONFIG, **tr.VARIANTI["B"])
+    punti_mm = torch.zeros(1, 26, 2); masks = torch.zeros(1, 26)
+    for i, (x, y) in {tr._S: (20, 20), tr._N: (90, 20), tr._UIT: (80, 80), tr._LIT: (78, 84),
+                      tr._LMT: (55, 86), tr._LPM: (64, 85)}.items():
+        punti_mm[0, i] = torch.tensor([x, y], dtype=torch.float32); masks[0, i] = 1
+    # neighbour only: every start of LMT is on LPM (the only landmark within 15 mm) +- jitter
+    b = torch.zeros(200, dtype=torch.long); l = torch.full((200,), tr._LMT)
+    err = tr.errori_partenza(punti_mm, masks, b, l, dict(cfg, prob_vicino=1.0, prob_dente=0.0),
+                             torch.Generator().manual_seed(0))
+    assert ((err - (punti_mm[0, tr._LPM] - punti_mm[0, tr._LMT])).norm(dim=1) < 2.5).all()
+    # next tooth only: 7-11 mm along the incisor -> molar direction, +-1 mm across
+    err = tr.errori_partenza(punti_mm, masks, b, l, dict(cfg, prob_vicino=0.0, prob_dente=1.0),
+                             torch.Generator().manual_seed(0))
+    d = tr.direzione_occlusale(punti_mm[0], masks[0])
+    lungo = (err * d).sum(1).abs(); attraverso = (err[:, 0] * -d[1] + err[:, 1] * d[0]).abs()
+    assert (lungo >= 7 - 1e-4).all() and (lungo <= 11 + 1e-4).all() and (attraverso <= 1 + 1e-4).all()
+    # a skeletal landmark is never moved "by one tooth": uniform errors only
+    err = tr.errori_partenza(punti_mm, masks, b, torch.full((200,), tr._S),
+                             dict(cfg, prob_vicino=0.0, prob_dente=1.0), torch.Generator().manual_seed(0))
+    r = err.norm(dim=1)
+    assert (r >= cfg["rumore_min_mm"] - 1e-4).all() and (r <= cfg["rumore_max_mm"] + 1e-4).all()
+
+
+def test_scala_del_ritaglio_e_bersaglio_coerenti():
+    """With the crop scale jitter, the target must still point at the landmark inside the crop."""
+    import train_refine as tr
+    cfg = dict(tr.CONFIG, finestra_mm=25.6, crop_px=128, scala_max=0.2, rotazione_max_gradi=0.0,
+               rumore_min_mm=3.0, rumore_max_mm=8.0)
+    H = W = 400
+    img = torch.zeros(1, H, W); img[0, 197:204, 247:254] = 1.0             # spot at pixel (250, 200)
+    punti = torch.zeros(1, 26, 2); punti[0, 0] = torch.tensor([250.0, 200.0])
+    masks = torch.zeros(1, 26); masks[0, 0] = 1
+    ps = torch.tensor([0.1])
+    random.seed(0); torch.manual_seed(0)
+    originale = tr.augmenta_crop
+    tr.augmenta_crop = lambda c, t, config: (c, t)                          # geometry only
+    try:
+        for _ in range(10):
+            crops, _, target = tr.genera_batch([img], punti, masks, ps, cfg, "cpu", training=True)
+            c = crops[0, 0]
+            ys, xs = torch.nonzero(c > c.mean() + 2 * c.std(), as_tuple=True)
+            pos_mm = (torch.stack([xs.float().mean(), ys.float().mean()]) + 0.5) / 128 * 25.6 - 12.8
+            assert (pos_mm - target[0]).norm() < 0.4, (pos_mm, target[0])
+    finally:
+        tr.augmenta_crop = originale
+
+
 if __name__ == "__main__":
     test = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     falliti = 0

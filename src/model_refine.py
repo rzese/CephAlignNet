@@ -201,8 +201,86 @@ class ImageRefinementNet(nn.Module):
         logits_tutti = self.head(self.encoder(crop))                    # [K, N, s, s]
         K, _, s, _ = logits_tutti.shape
         logits = logits_tutti[torch.arange(K, device=crop.device), landmark_idx]   # [K, s, s]
-        p = torch.softmax(logits.reshape(K, -1), dim=1).view(K, s, s)
-        griglia = (torch.arange(s, device=crop.device, dtype=torch.float32) + 0.5) / s - 0.5
-        dx = (p.sum(dim=1) * griglia).sum(dim=1)
-        dy = (p.sum(dim=2) * griglia).sum(dim=1)
-        return torch.stack([dx, dy], dim=1) * self.finestra_mm, logits
+        return _baricentro_crop(logits, self.finestra_mm), logits
+
+
+def _baricentro_crop(logits, finestra_mm):
+    """[K, s, s] logits -> [K, 2] expected position (mm) from the crop center."""
+    K, s, _ = logits.shape
+    p = torch.softmax(logits.reshape(K, -1), dim=1).view(K, s, s)
+    griglia = (torch.arange(s, device=logits.device, dtype=torch.float32) + 0.5) / s - 0.5
+    dx = (p.sum(dim=1) * griglia).sum(dim=1)
+    dy = (p.sum(dim=2) * griglia).sum(dim=1)
+    return torch.stack([dx, dy], dim=1) * finestra_mm
+
+
+class _BloccoDecoder(nn.Module):
+    """U-Net decoder step: upsample x2, concatenate the skip, two 3x3 convs."""
+    def __init__(self, ch_in, ch_skip, ch_out):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(ch_in + ch_skip, ch_out, 3, padding=1, bias=False), nn.BatchNorm2d(ch_out), nn.ReLU(inplace=True),
+            nn.Conv2d(ch_out, ch_out, 3, padding=1, bias=False), nn.BatchNorm2d(ch_out), nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x, skip):
+        x = F.interpolate(x, size=skip.shape[-2:], mode="bilinear", align_corners=False)
+        return self.conv(torch.cat([x, skip], dim=1))
+
+
+class ImageRefinementUNet(nn.Module):
+    """
+    Stage 2 on the original radiograph with a pretrained encoder and a U-Net
+    decoder: same task and interface as ImageRefinementNet (crop centered on the
+    Stage 1 prediction -> logit heatmap of the requested landmark -> expected
+    position), but with a much finer output: the heatmap is at half the crop
+    resolution (crop_px / 2 cells per side, e.g. 128 x 128 cells of 0.3 mm for a
+    38.4 mm / 256 px crop) instead of crop_px / 4.
+
+    Encoder: a timm CNN (default resnet34, ImageNet weights, 1 input channel),
+    whose stride-2..32 features are merged back up to stride 2 by the decoder.
+
+    forward(crop [K,1,S,S], landmark_idx [K]) -> (offset_mm [K,2], logits [K,S/2,S/2])
+    """
+    tipo_input = "immagine"
+
+    def __init__(self, num_landmarks=26, finestra_mm=38.4, crop_px=256, max_offset_mm=15.0,
+                 encoder="resnet34", pretrained=True):
+        super().__init__()
+        import timm
+        self.num_landmarks = num_landmarks
+        self.finestra_mm   = float(finestra_mm)
+        self.crop_px       = int(crop_px)
+        self.max_offset_mm = float(max_offset_mm)
+        self.encoder_nome  = encoder
+        self.encoder = timm.create_model(encoder, pretrained=pretrained, features_only=True, in_chans=1)
+        canali = self.encoder.feature_info.channels()          # strides 2, 4, 8, 16, 32
+        dec = [256, 128, 64, 64]
+        self.decoder = nn.ModuleList()
+        ch = canali[-1]
+        for skip, out in zip(reversed(canali[:-1]), dec):
+            self.decoder.append(_BloccoDecoder(ch, skip, out))
+            ch = out
+        self.head = nn.Conv2d(ch, num_landmarks, 1)
+
+    def forward(self, crop, landmark_idx):
+        feats = self.encoder(crop)
+        x = feats[-1]
+        for blocco, skip in zip(self.decoder, reversed(feats[:-1])):
+            x = blocco(x, skip)
+        logits_tutti = self.head(x)                                       # [K, N, S/2, S/2]
+        K = logits_tutti.shape[0]
+        logits = logits_tutti[torch.arange(K, device=crop.device), landmark_idx]
+        return _baricentro_crop(logits, self.finestra_mm), logits
+
+
+def crea_stage2_immagine(arch="base", num_landmarks=26, finestra_mm=25.6, crop_px=128, max_offset_mm=11.0,
+                         encoder="resnet34", pretrained=True):
+    """Image-based Stage 2 of the given architecture: "base" (ImageRefinementNet)
+    or "unet" (ImageRefinementUNet)."""
+    if arch == "unet":
+        return ImageRefinementUNet(num_landmarks, finestra_mm, crop_px, max_offset_mm,
+                                   encoder=encoder, pretrained=pretrained)
+    if arch == "base":
+        return ImageRefinementNet(num_landmarks, finestra_mm, crop_px, max_offset_mm)
+    raise ValueError(f"unknown Stage 2 architecture '{arch}' (expected 'base' or 'unet')")

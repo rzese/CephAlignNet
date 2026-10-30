@@ -11,7 +11,7 @@
 #
 # It creates:
 #   $BASE/venv_ceph      Python venv with requirements.txt
-#   $BASE/hf_cache       pretrained HRNet-W48 weights (read offline by the jobs)
+#   $BASE/hf_cache       pretrained HRNet-W48 and resnet34 weights (read offline by the jobs)
 #   leonardo_env.sh      the paths above, read by run_leonardo.slurm
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -54,6 +54,8 @@ python - <<'EOF'
 import timm
 timm.create_model("hrnet_w48", pretrained=True, features_only=True, in_chans=1)
 print("HRNet-W48 weights downloaded")
+timm.create_model("resnet34", pretrained=True, features_only=True, in_chans=1)   # Stage 2 variants A/B
+print("resnet34 weights downloaded")
 EOF
 if ! ls "$HF_HUB_CACHE"/models--timm--hrnet_w48.ms_in1k/snapshots/*/model.safetensors >/dev/null 2>&1; then
     echo "ERROR: weights not found in $HF_HUB_CACHE"

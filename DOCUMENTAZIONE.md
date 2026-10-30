@@ -530,6 +530,44 @@ Per rimisurare i parametri su un run (solo quando si vuole sostituire la misura)
 3. `strategie_stage2.py <csv> --salva src/parametri_stage2.py` riscrive il file con i
    parametri stimati su tutte le immagini.
 
+### Varianti dello Stage 2 (`VARIANTI` in `train_refine.py`)
+
+Si scelgono con `esegui_esperimento.py refine --variante <nome>`; senza opzione resta
+il CONFIG (variante `base`).
+
+| Variante | Rete | Ritaglio | Uscita | Partenze in training | Altro |
+|---|---|---|---|---|---|
+| `base` | `ImageRefinementNet` (da zero) | 25.6 mm, 128 px (0.2 mm/px) | 32×32 (0.8 mm) | errore uniforme 0.5–11 mm | — |
+| `A` | `ImageRefinementUNet`: resnet34 ImageNet + decoder U-Net | 38.4 mm, 256 px (0.15 mm/px) | 128×128 (0.3 mm) | errore uniforme 0.5–15 mm | scala del ritaglio ±10%, lr 3e-4, bf16 |
+| `B` | come A | come A | come A | come A, più 20% su un altro landmark entro 15 mm e 20% (punte dentali LPM, LIT, LMT, UIT) a un dente di distanza lungo il piano occlusale (7–11 mm) | come A |
+
+Perché: sul validation lo Stage 2 `base` sporca i punti già giusti (errore mediano
+0.41 mm quando lo Stage 1 è sotto 0.5 mm: uscita a celle da 0.8 mm) e non corregge
+gli errori grandi veri (Stage 1 tra 5 e 11 mm: da 6.6 a 5.8 mm), che sono strutture
+sbagliate (dente accanto, landmark vicino) più che spostamenti casuali.
+
+- **Scala del ritaglio**: ogni immagine viene ritagliata come se la dimensione del
+  pixel fosse sbagliata di un fattore 1 ± `scala_max`; il bersaglio è scalato di
+  conseguenza. Rende lo Stage 2 robusto agli errori di calibrazione degli apparecchi.
+- **Direzione occlusale**: dagli incisivi (UIT, LIT) al molare inferiore (LMT); senza
+  LMT (ISBI) orizzontale, verso la nuca (da N verso S).
+- **Memoria**: con `max_crop_per_passo` i ritagli di un batch sono elaborati a blocchi
+  con gradiente accumulato (`amp`: autocast bf16 su GPU).
+- Il checkpoint salva `arch_stage2`, `encoder` e `variante`; `carica_stage2` ricostruisce
+  la rete giusta (senza scaricare pesi: arrivano dal checkpoint).
+- Con una variante nuova σ_S2 cambia scala, quindi i parametri della fusione vanno
+  rimisurati: `run_stage2_leonardo.slurm` li ristima sul **validation**
+  (`strategie_stage2.py --salva <dir>/parametri_stage2.py`) e `esegui_esperimento.py
+  evaluate` usa `<dir>/parametri_stage2.py` quando esiste.
+- I pesi di resnet34 vanno nella cache offline: `setup_leonardo.sh` li scarica.
+
+```bash
+sbatch --export=ALL,VARIANTE=A,DIR=esperimenti_s2/A run_stage2_leonardo.slurm
+sbatch --export=ALL,VARIANTE=B,DIR=esperimenti_s2/B run_stage2_leonardo.slurm
+```
+
+Entrambi usano lo Stage 1 di `esperimenti_crop/probabilistic` (`STAGE1_DA`).
+
 ---
 
 ## 11. Valutazione (`evaluate_refine.py`)
@@ -589,7 +627,7 @@ Tutti gli script vanno eseguiti dalla root della repo con `PYTHONPATH=.`.
 
 | File | Cosa fa |
 |---|---|
-| `test_unita.py` | **24 test automatici** su dati sintetici, senza dataset né GPU: rotazione TTA, coerenza di `augmenta`, griglia pixel, regression voting, sigma addestrabile, loss NLL, momenti della heatmap, conversione in mm, vincoli geometrici, Stage 2 e guardia, split, scala dei Tracciati, calibrazione conforme. Si lancia con `PYTHONPATH=. python Test/test_unita.py`, oppure con `pytest`. |
+| `test_unita.py` | **27 test automatici** su dati sintetici, senza dataset né GPU: rotazione TTA, coerenza di `augmenta`, griglia pixel, regression voting, sigma addestrabile, loss NLL, momenti della heatmap, conversione in mm, vincoli geometrici, Stage 2 e guardia, Stage 2 U-Net e caricamento, partenze difficili e scala dei ritagli, split, scala dei Tracciati, calibrazione conforme. Si lancia con `PYTHONPATH=. python Test/test_unita.py`, oppure con `pytest`. |
 | `verifica_mappatura_isbi.py` | Salva alcune immagini ISBI con i 19 punti etichettati secondo le due mappature, per scegliere quella giusta |
 | `test_caricamento tracciati.py` | Legge ogni caso dei Tracciati e riporta quanti landmark riconosce |
 | `test.py`, `test_isbi.py`, `test_datasets.py`, `test_tracciati.py` | Visualizzazione di un campione; aggiornati all'interfaccia attuale dei dataset |
