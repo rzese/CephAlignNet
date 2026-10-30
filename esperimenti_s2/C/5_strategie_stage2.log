@@ -1,0 +1,18 @@
+4470 points, 180 images | objective: mean accuracy within 2, 2.5, 3, 4 mm | 2-fold CV over even/odd images
+
+strategy                              MRE    <2mm  <2.5mm    <3mm    <4mm mean acc   parameters (chosen on even images)
+-----------------------------------------------------------------------------------------------------------------------
+Stage 1 only                        1.069   86.7%   92.2%   94.8%   97.4%   92.79%   
+Stage 2 everywhere                  1.597   78.0%   84.0%   87.1%   91.4%   85.12%   
+threshold on sigma_tta              1.074   86.7%   92.1%   94.7%   97.4%   92.73%   sigma_tta > 1.35 mm
+fusion (weighted average)           1.041   87.9%   92.4%   94.7%   97.3%   93.10%   c=0.32 p=4 floor=0.4 mm
+classifier                          1.046   88.1%   92.3%   94.8%   97.4%   93.13%   soft weight w = p
+Stage 2 everywhere + S2 TTA         1.579   78.4%   84.5%   87.5%   91.8%   85.53%   
+threshold on sigma_tta + S2 TTA     1.073   86.7%   92.1%   94.7%   97.4%   92.75%   sigma_tta > 1.35 mm
+fusion (weighted average) + S2 TTA  1.040   88.0%   92.4%   94.8%   97.4%   93.14%   c=0.32 p=4 floor=0.4 mm
+classifier + S2 TTA                 1.045   87.7%   92.5%   94.9%   97.5%   93.14%   switch if p > 0.45
+-----------------------------------------------------------------------------------------------------------------------
+Ideal (best of the two)             0.859   91.3%   94.6%   96.4%   98.4%   95.17%   unreachable upper bound
+Ideal (best of the two) + S2 TTA    0.861   91.5%   94.7%   96.5%   98.5%   95.30%   unreachable upper bound
+
+Parameters written to esperimenti_s2/C/parametri_stage2.py: fusion c=0.32 p=2 floor=0.4 mm | threshold 1.18 mm
