@@ -1,0 +1,88 @@
+[WARN] src/landmark_stats.py non trovato — uso valori di fallback (esegui `python -m src.analiz_land` per generarli dai dati).
+[WARN] src/landmark_stats.py not found — using fallback REFINE_LANDMARK_MASK (run `python -m src.analiz_land` to generate it from the data).
+[esegui_esperimento] step=refine dir=esperimenti_s2/A
+{
+ "aariz_path": "data/Aariz",
+ "isbi_path": "data/Cepha400",
+ "tracciati_path": null,
+ "tracciati_tabella_scale": null,
+ "num_landmarks": 26,
+ "batch_size": 16,
+ "num_workers": 4,
+ "num_epochs": 200,
+ "learning_rate": 0.0003,
+ "val_split": 0.2,
+ "save_path": "esperimenti_s2/A/modello_refine.pth",
+ "patience": 30,
+ "finestra_mm": 38.4,
+ "crop_px": 256,
+ "max_offset_mm": 15.0,
+ "rumore_min_mm": 0.5,
+ "rumore_max_mm": 15.0,
+ "rotazione_max_gradi": 10.0,
+ "peso_nll": 1.0,
+ "arch": "unet",
+ "encoder": "resnet34",
+ "pretrained": true,
+ "scala_max": 0.1,
+ "prob_vicino": 0.0,
+ "vicino_max_mm": 15.0,
+ "prob_dente": 0.0,
+ "dente_mm": [
+  7.0,
+  11.0
+ ],
+ "max_crop_per_passo": 128,
+ "amp": true,
+ "variante": "A",
+ "stage1_path": "esperimenti_s2/A/modello_heatmap.pth"
+}
+Device: cuda
+Stage 2 variant 'A': arch unet (resnet34, pretrained=True) | scale jitter +-10% | hard starts: neighbour landmark 0%, next tooth 0%
+Stage 2 on the original radiograph: window 38.4 mm (0.15 mm/px), max offset 15.0 mm, synthetic error distance uniform in [0.5, 15.0] mm
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] ufficiale split: training 820, validation 180 images, fingerprint 068a762ae3
+Epoch   1/200 | Train: 3.8009 | Val: 2.8889 | LR: 3.00e-04 | val error 7.71 -> 4.09 mm (median 7.56 -> 2.66) | improved 82.9%
+  → saved (val_loss: 2.8889)
+Epoch   2/200 | Train: 1.8497 | Val: 1.5743 | LR: 3.00e-04 | val error 7.71 -> 2.22 mm (median 7.56 -> 1.27) | improved 91.8%
+  → saved (val_loss: 1.5743)
+Epoch   3/200 | Train: 1.3061 | Val: 1.2650 | LR: 3.00e-04 | val error 7.71 -> 1.75 mm (median 7.56 -> 1.04) | improved 92.6%
+  → saved (val_loss: 1.2650)
+Epoch   4/200 | Train: 1.0580 | Val: 2.2526 | LR: 3.00e-04 | val error 7.71 -> 3.11 mm (median 7.56 -> 1.24) | improved 83.2%
+Epoch   5/200 | Train: 0.9602 | Val: 1.7610 | LR: 3.00e-04 | val error 7.71 -> 2.42 mm (median 7.56 -> 1.05) | improved 86.6%
+Epoch   6/200 | Train: 0.9433 | Val: 2.8962 | LR: 3.00e-04 | val error 7.71 -> 3.97 mm (median 7.56 -> 1.67) | improved 76.1%
+Epoch   7/200 | Train: 0.8885 | Val: 1.1720 | LR: 3.00e-04 | val error 7.71 -> 1.59 mm (median 7.56 -> 0.88) | improved 92.9%
+  → saved (val_loss: 1.1720)
+Epoch   8/200 | Train: 0.8535 | Val: 2.0091 | LR: 3.00e-04 | val error 7.71 -> 2.74 mm (median 7.56 -> 1.12) | improved 84.9%
+Epoch   9/200 | Train: 0.8385 | Val: 2.8912 | LR: 3.00e-04 | val error 7.71 -> 3.94 mm (median 7.56 -> 1.49) | improved 76.2%
+Epoch  10/200 | Train: 0.7993 | Val: 3.3916 | LR: 3.00e-04 | val error 7.71 -> 4.54 mm (median 7.56 -> 1.61) | improved 73.2%
+Epoch  11/200 | Train: 0.7925 | Val: 2.4469 | LR: 3.00e-04 | val error 7.71 -> 3.28 mm (median 7.56 -> 1.19) | improved 81.6%
+Epoch  12/200 | Train: 0.7835 | Val: 2.3962 | LR: 3.00e-04 | val error 7.71 -> 3.22 mm (median 7.56 -> 1.04) | improved 82.9%
+Epoch  13/200 | Train: 0.7542 | Val: 2.8591 | LR: 3.00e-04 | val error 7.71 -> 3.84 mm (median 7.56 -> 1.34) | improved 77.9%
+Epoch  14/200 | Train: 0.7462 | Val: 2.7499 | LR: 3.00e-04 | val error 7.71 -> 3.68 mm (median 7.56 -> 1.16) | improved 79.5%
+Epoch  15/200 | Train: 0.7331 | Val: 2.9293 | LR: 3.00e-04 | val error 7.71 -> 3.92 mm (median 7.56 -> 1.30) | improved 77.3%
+Epoch  16/200 | Train: 0.7244 | Val: 3.2769 | LR: 1.50e-04 | val error 7.71 -> 4.31 mm (median 7.56 -> 1.30) | improved 75.2%
+Epoch  17/200 | Train: 0.6981 | Val: 4.4236 | LR: 1.50e-04 | val error 7.71 -> 6.16 mm (median 7.56 -> 3.30) | improved 61.1%
+Epoch  18/200 | Train: 0.6728 | Val: 2.6564 | LR: 1.50e-04 | val error 7.71 -> 3.52 mm (median 7.56 -> 1.11) | improved 79.7%
+Epoch  19/200 | Train: 0.6716 | Val: 3.8956 | LR: 1.50e-04 | val error 7.71 -> 5.26 mm (median 7.56 -> 1.70) | improved 68.8%
+Epoch  20/200 | Train: 0.6620 | Val: 2.3381 | LR: 1.50e-04 | val error 7.71 -> 3.03 mm (median 7.56 -> 1.00) | improved 83.0%
+Epoch  21/200 | Train: 0.6517 | Val: 3.0021 | LR: 1.50e-04 | val error 7.71 -> 3.98 mm (median 7.56 -> 1.28) | improved 76.5%
+Epoch  22/200 | Train: 0.6478 | Val: 4.5940 | LR: 1.50e-04 | val error 7.71 -> 6.14 mm (median 7.56 -> 2.20) | improved 64.3%
+Epoch  23/200 | Train: 0.6387 | Val: 1.8902 | LR: 1.50e-04 | val error 7.71 -> 2.54 mm (median 7.56 -> 0.91) | improved 86.3%
+Epoch  24/200 | Train: 0.6372 | Val: 2.9896 | LR: 1.50e-04 | val error 7.71 -> 3.96 mm (median 7.56 -> 1.21) | improved 76.7%
+Epoch  25/200 | Train: 0.6270 | Val: 2.6694 | LR: 7.50e-05 | val error 7.71 -> 3.51 mm (median 7.56 -> 1.08) | improved 80.3%
+Epoch  26/200 | Train: 0.6000 | Val: 2.2793 | LR: 7.50e-05 | val error 7.71 -> 3.00 mm (median 7.56 -> 0.97) | improved 83.7%
+Epoch  27/200 | Train: 0.6049 | Val: 3.2039 | LR: 7.50e-05 | val error 7.71 -> 4.18 mm (median 7.56 -> 1.25) | improved 75.5%
+Epoch  28/200 | Train: 0.5997 | Val: 3.9401 | LR: 7.50e-05 | val error 7.71 -> 5.30 mm (median 7.56 -> 1.79) | improved 68.2%
+Epoch  29/200 | Train: 0.5887 | Val: 1.7985 | LR: 7.50e-05 | val error 7.71 -> 2.43 mm (median 7.56 -> 0.89) | improved 87.0%
+Epoch  30/200 | Train: 0.5826 | Val: 3.6463 | LR: 7.50e-05 | val error 7.71 -> 4.84 mm (median 7.56 -> 1.57) | improved 71.5%
+Epoch  31/200 | Train: 0.5837 | Val: 2.7379 | LR: 7.50e-05 | val error 7.71 -> 3.59 mm (median 7.56 -> 1.13) | improved 79.3%
+Epoch  32/200 | Train: 0.5787 | Val: 2.9138 | LR: 7.50e-05 | val error 7.71 -> 3.81 mm (median 7.56 -> 1.17) | improved 78.2%
+Epoch  33/200 | Train: 0.5723 | Val: 3.9393 | LR: 7.50e-05 | val error 7.71 -> 5.18 mm (median 7.56 -> 1.63) | improved 69.8%
+Epoch  34/200 | Train: 0.5760 | Val: 2.8993 | LR: 3.75e-05 | val error 7.71 -> 3.78 mm (median 7.56 -> 1.15) | improved 78.3%
+Epoch  35/200 | Train: 0.5671 | Val: 4.2409 | LR: 3.75e-05 | val error 7.71 -> 5.74 mm (median 7.56 -> 2.12) | improved 65.8%
+Epoch  36/200 | Train: 0.5611 | Val: 3.6721 | LR: 3.75e-05 | val error 7.71 -> 4.93 mm (median 7.56 -> 1.72) | improved 70.7%
+Epoch  37/200 | Train: 0.5481 | Val: 2.5920 | LR: 3.75e-05 | val error 7.71 -> 3.38 mm (median 7.56 -> 1.05) | improved 81.1%
+Early stopping at epoch 37

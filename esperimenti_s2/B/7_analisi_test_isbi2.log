@@ -1,0 +1,112 @@
+[WARN] src/landmark_stats.py non trovato — uso valori di fallback (esegui `python -m src.analiz_land` per generarli dai dati).
+[WARN] src/landmark_stats.py not found — using fallback REFINE_LANDMARK_MASK (run `python -m src.analiz_land` to generate it from the data).
+Device: cuda | dir: esperimenti_s2/B | TTA: True
+Backbone: HRNet-W48 | Detected channels: [64, 128, 256, 512, 1024]
+Stage 1 loaded (hrnet_w48, channels=[64, 128, 256, 512, 1024], epoch=149, val_loss=0.161481, heatmap_mode=probabilistic, grid=centri, validation set 068a762ae3)
+Stage 2 loaded (ImageRefinementUNet on the original radiograph, window 38.4 mm / 256 px, max offset 15.0 mm, epoch=21, val_loss=0.9179, validation set 068a762ae3)
+[AarizDataset] split=['train', 'valid', 'test'] | total samples=1000 (png+jpg)
+[ISBIDataset] campioni totali=400 | mappatura=standard
+[Datasets] Aariz=1000 | ISBI=400 | Tracciati=0 | TOT=1400
+[crea_split] ufficiale split: training 820, validation 180 images, fingerprint 068a762ae3
+[crea_insieme] test_isbi2: 100 images
+Fixed Stage 2 mask: ['R', 'Co', 'Go', 'Po']
+  images processed: 2  images processed: 4  images processed: 6  images processed: 8  images processed: 10  images processed: 12  images processed: 14  images processed: 16  images processed: 18  images processed: 20  images processed: 22  images processed: 24  images processed: 26  images processed: 28  images processed: 30  images processed: 32  images processed: 34  images processed: 36  images processed: 38  images processed: 40  images processed: 42  images processed: 44  images processed: 46  images processed: 48  images processed: 50  images processed: 52  images processed: 54  images processed: 56  images processed: 58  images processed: 60  images processed: 62  images processed: 64  images processed: 66  images processed: 68  images processed: 70  images processed: 72  images processed: 74  images processed: 76  images processed: 78  images processed: 80  images processed: 82  images processed: 84  images processed: 86  images processed: 88  images processed: 90  images processed: 92  images processed: 94  images processed: 96  images processed: 98  images processed: 100
+
+================================================================
+A. MRE (mm) and accuracy — 1900 points, 100 images
+================================================================
+                                          MRE     <2mm  <2.5mm    <3mm    <4mm
+  Stage 1 only                          1.442    73.5%   81.1%   86.6%   94.4%
+  Stage 2 on the current fixed mask     1.440    73.3%   80.8%   86.4%   94.4%
+  Stage 2 on all landmarks              1.408    74.9%   81.4%   87.1%   94.0%
+  Ideal (Stage 2 only where it helps)   1.154    80.9%   86.9%   91.8%   96.8%
+  fixed mask = ['R', 'Co', 'Go', 'Po'] | 'Ideal' = upper bound for ANY selection rule
+  Stage 2 improves 54.4% of the points, worsens 45.6%, leaves 0.0% unchanged
+
+================================================================
+B. Stage 2 effect per quintile of sigma_tta
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.07-0.18     0.698   0.661  -0.037    56.1%        0.0%
+         2   0.18-0.24     1.047   1.013  -0.035    54.2%        0.0%
+         3   0.24-0.31     1.554   1.520  -0.034    53.2%        0.0%
+         4   0.31-0.40     1.887   1.870  -0.017    53.9%        0.0%
+         5   0.40-3.33     2.022   1.974  -0.048    54.7%        0.0%
+
+C. Apply Stage 2 only where sigma_tta > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  1.442    73.5%   81.1%   86.6%   94.4%
+       0.07       99.9%  1.408    74.9%   81.4%   87.1%   94.0%
+       0.27       50.0%  1.419    74.9%   81.7%   86.9%   94.2%
+       0.31       40.0%  1.429    74.3%   81.3%   86.9%   94.2%
+       0.35       30.0%  1.426    74.3%   81.2%   86.6%   94.2%
+       0.40       20.0%  1.432    74.2%   80.9%   86.4%   94.5%
+       0.51       10.0%  1.444    73.6%   80.9%   86.4%   94.4%
+       0.61        5.0%  1.452    73.3%   80.8%   86.5%   94.3%
+       0.88        1.0%  1.448    73.4%   81.1%   86.5%   94.4%
+  threshold chosen on even images: 0.25 mm -> on odd images MRE 1.431 (Stage 1) vs 1.433 (selective Stage 2), 53.6% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  1.431    72.9%   81.2%   86.4%   94.4%
+      selective Stage 2  1.433    74.6%   81.3%   86.3%   93.6%
+
+================================================================
+B. Stage 2 effect per quintile of sigma_heatmap
+================================================================
+  quintile       sigma mm  err S1  err S2   delta improves err>maxcorr
+         1   0.98-2.03     0.772   0.747  -0.025    55.8%        0.0%
+         2   2.03-2.61     1.429   1.305  -0.124    59.2%        0.0%
+         3   2.61-3.29     1.800   1.736  -0.064    51.8%        0.0%
+         4   3.29-4.57     1.678   1.708  +0.030    50.0%        0.0%
+         5   4.57-19.85    1.529   1.541  +0.012    55.3%        0.0%
+
+C. Apply Stage 2 only where sigma_heatmap > threshold
+  threshold % corrected    MRE     <2mm  <2.5mm    <3mm    <4mm
+     (none)        0.0%  1.442    73.5%   81.1%   86.6%   94.4%
+       0.98       99.9%  1.408    74.9%   81.4%   87.1%   94.0%
+       2.92       50.0%  1.446    73.9%   79.7%   85.3%   93.6%
+       3.29       40.0%  1.450    73.5%   79.5%   85.2%   93.6%
+       3.78       30.0%  1.445    73.3%   79.8%   85.5%   93.9%
+       4.57       20.0%  1.444    73.5%   80.0%   85.7%   93.9%
+       6.30       10.0%  1.443    73.3%   80.6%   85.9%   94.1%
+       8.31        5.0%  1.448    73.3%   80.9%   86.2%   94.1%
+      13.54        1.0%  1.450    73.4%   80.9%   86.4%   94.3%
+  threshold chosen on even images: 1.98 mm -> on odd images MRE 1.431 (Stage 1) vs 1.414 (selective Stage 2), 82.0% corrected
+             odd images    MRE     <2mm  <2.5mm    <3mm    <4mm
+           Stage 1 only  1.431    72.9%   81.2%   86.4%   94.4%
+      selective Stage 2  1.414    75.5%   81.4%   86.5%   93.8%
+
+================================================================
+D. Per landmark (Stage 2 applied to every point)
+================================================================
+         err S1  err S2   delta improves in mask
+  A       1.639   1.393  -0.246    62.0%        
+  ANS     1.099   1.229  +0.130    52.0%        
+  B       1.777   2.396  +0.618    19.0%        
+  Me      0.548   0.713  +0.164    32.0%        
+  N       0.900   0.892  -0.008    55.0%        
+  Or      2.255   2.566  +0.312    37.0%        
+  Pog     0.603   0.532  -0.071    59.0%        
+  PNS     1.222   0.973  -0.249    65.0%        
+  S       0.502   0.469  -0.033    59.0%        
+  Ar      0.981   1.173  +0.193    37.0%        
+  Gn      0.442   0.437  -0.005    53.0%        
+  Go      1.238   1.348  +0.110    49.0%     yes
+  Po      1.581   1.430  -0.150    59.0%     yes
+  LIT     0.700   0.600  -0.099    64.0%        
+  UIT     0.545   0.573  +0.028    50.0%        
+  Ls      3.610   2.774  -0.836    97.0%        
+  Li      2.691   1.958  -0.734    85.0%        
+  Pog`    3.887   4.158  +0.271    34.0%        
+  Sn      1.172   1.130  -0.041    66.0%        
+
+================================================================
+E. Size of the Stage 2 corrections
+================================================================
+  max correction allowed (MAX_OFFSET): ~21.21 mm on this data
+  proposed correction: median 0.591 mm | 90th pct 1.577 mm | max 10.635 mm
+  rejected by the guard: 0.0%
+  Stage 1 error: median 0.99 mm | errors > max correction: 0.0%
+  Spearman(correction size, Stage 1 error): +0.475   (near 0 = Stage 2 does not 'see' where Stage 1 is wrong)
+
+Per-point data saved to esperimenti_s2/B/analisi_stage2_test_isbi2.csv
+Compare the ways of combining Stage 1 and Stage 2 with:  python strategie_stage2.py esperimenti_s2/B/analisi_stage2_test_isbi2.csv
