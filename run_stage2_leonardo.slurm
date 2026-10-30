@@ -6,7 +6,7 @@
 #
 # The Stage 1 (modello_heatmap.pth, landmark_stats.py) is taken from STAGE1_DA
 # (linked / copied into DIR); modello_refine.pth and all the results go to DIR.
-#   mkdir -p logs && sbatch --export=ALL,VARIANTE=B,DIR=esperimenti_s2/B run_stage2_leonardo.slurm
+#   mkdir -p logs && sbatch --export=ALL,VARIANTE=C,DIR=esperimenti_s2/C run_stage2_leonardo.slurm
 #   sbatch --export=ALL,VARIANTE=A,DIR=esperimenti_s2/A run_stage2_leonardo.slurm
 # Variants: see VARIANTI in train_refine.py ("base" = the current Stage 2).
 #
@@ -33,7 +33,7 @@ cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 export PYTHONUNBUFFERED=1
 export PYTHONPATH="$(pwd)${PYTHONPATH:+:$PYTHONPATH}"
 
-VARIANTE="${VARIANTE:-B}"
+VARIANTE="${VARIANTE:-C}"
 DIR="${DIR:-esperimenti_s2/$VARIANTE}"
 STAGE1_DA="${STAGE1_DA:-esperimenti_crop/probabilistic}"
 BATCH_REFINE="${BATCH_REFINE:-16}"

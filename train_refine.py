@@ -29,6 +29,11 @@ Variants (VARIANTI, chosen with  esegui_esperimento.py refine --variante <name>)
           landmark of the same image (within vicino_max_mm), 20% of the dental
           tips start one tooth away along the occlusal plane (7-11 mm). These are
           the real Stage 1 failures that random displacements do not reproduce.
+  "C"     B with a stable training: crops shuffled before the memory slices
+          (otherwise each slice holds the crops of ~5 images and the BatchNorm
+          statistics jump from slice to slice), EMA of the weights (validation and
+          checkpoint use the averaged model), lr 1e-4, longer patience, and no
+          neighbour-landmark starts for the soft tissue points (Pn was pulled to Sn).
 """
 import random
 
@@ -36,6 +41,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 import torchvision.transforms.functional as TF
+from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
 from torch.utils.data import DataLoader
 
 from src.datasets import Datasets, crea_split, impronta_split
@@ -56,6 +62,7 @@ CONFIG = {
     "val_split":      0.2,
     "save_path":      "modello_refine.pth",
     "patience":       30,
+    "patience_lr":    8,       # ReduceLROnPlateau patience
     # ── crop and correction range ──
     "finestra_mm":    25.6,    # side of the crop (+-12.5 mm: the true point stays well inside even at 11.5 mm)
     "crop_px":        128,     # -> 0.2 mm per crop pixel
@@ -75,13 +82,22 @@ CONFIG = {
     "scala_max":      0.0,          # crop scale jitter: mm/px multiplied by 1 +- scala_max
     "prob_vicino":    0.0,          # start on another landmark of the same image
     "vicino_max_mm":  15.0,
+    "vicino_escludi": (),           # landmark indices that never get a neighbour start
     "prob_dente":     0.0,          # dental tips: start one tooth away along the occlusal plane
     "dente_mm":       (7.0, 11.0),
     # ── memory: crops per forward/backward pass (bf16 autocast on GPU) ──
     "max_crop_per_passo": 0,        # 0 = all the crops of the batch at once
     "amp":            False,
+    # ── training stability (0 / False = off) ──
+    "mescola_crop":   False,        # shuffle the crops of a batch before the memory slices
+    "ema":            0.0,          # decay of the EMA of the weights (e.g. 0.999); 0 = no EMA
     "variante":       "base",
 }
+
+# Landmark indices (order of NOMI in train_heatmap.py)
+_S, _N, _LPM, _LIT, _LMT, _UIT = 10, 4, 16, 17, 18, 19
+PUNTE_DENTALI = (_LPM, _LIT, _LMT, _UIT)   # tips that can be confused with the next tooth
+TESSUTI_MOLLI = (8, 22, 23, 24, 25)        # Pn, Ls, Li, Pog`, Sn
 
 _VARIANTE_A = {
     "arch": "unet", "encoder": "resnet34", "pretrained": True,
@@ -93,10 +109,8 @@ VARIANTI = {
     "A": _VARIANTE_A,
     "B": {**_VARIANTE_A, "prob_vicino": 0.2, "prob_dente": 0.2},
 }
-
-# Landmark indices (order of NOMI in train_heatmap.py)
-_S, _N, _LPM, _LIT, _LMT, _UIT = 10, 4, 16, 17, 18, 19
-PUNTE_DENTALI = (_LPM, _LIT, _LMT, _UIT)   # tips that can be confused with the next tooth
+VARIANTI["C"] = {**VARIANTI["B"], "mescola_crop": True, "ema": 0.998, "learning_rate": 1e-4,
+                 "patience": 60, "patience_lr": 15, "vicino_escludi": TESSUTI_MOLLI}
 
 
 def applica_variante(config, nome):
@@ -157,7 +171,8 @@ def errori_partenza(punti_mm, masks, b_idx, l_idx, config, generator=None):
     """
     [K, 2] starting error in mm (start position - true position) of every crop:
       - with probability prob_vicino: the position of another annotated landmark
-        of the same image, between 2 and vicino_max_mm away (+ 0.5 mm jitter);
+        of the same image, between 2 and vicino_max_mm away (+ 0.5 mm jitter),
+        except for the landmarks in vicino_escludi;
       - dental tips, with probability prob_dente: one tooth away along the
         occlusal plane (dente_mm, either direction, +-1 mm across);
       - otherwise (or when the above is not possible): the uniform synthetic
@@ -177,7 +192,7 @@ def errori_partenza(punti_mm, masks, b_idx, l_idx, config, generator=None):
         p, m = punti_mm[b], masks[b]
         u = torch.rand(1, generator=generator).item()
         nuovo = None
-        if u < pv:
+        if u < pv and l not in config.get("vicino_escludi", ()):
             dist = (p - p[l]).norm(dim=1)
             cand = ((m > 0) & (dist >= 2.0) & (dist <= config.get("vicino_max_mm", 15.0))).nonzero().flatten()
             cand = cand[cand != l]
@@ -270,7 +285,7 @@ def _blocchi(K, config):
     return [slice(i, min(i + passo, K)) for i in range(0, K, passo)]
 
 
-def train_un_epoca(model, loader, optimizer, device, config):
+def train_un_epoca(model, loader, optimizer, device, config, ema=None):
     model.train()
     tot, n = 0.0, 0
     for immagini, punti, masks, ps in loader:
@@ -279,6 +294,9 @@ def train_un_epoca(model, loader, optimizer, device, config):
             continue
         crops, l_idx, target_mm = lotto
         K = len(l_idx)
+        if config.get("mescola_crop", False):     # every slice mixes all the images of the batch
+            perm = torch.randperm(K, device=crops.device)
+            crops, l_idx, target_mm = crops[perm], l_idx[perm], target_mm[perm]
         optimizer.zero_grad()
         loss_lotto = 0.0
         for sl in _blocchi(K, config):           # gradient accumulated over the slices
@@ -287,6 +305,8 @@ def train_un_epoca(model, loader, optimizer, device, config):
             loss_lotto += loss.item() * (sl.stop - sl.start) / K
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
         optimizer.step()
+        if ema is not None:
+            ema.update_parameters(model)
         tot += loss_lotto; n += 1
     return tot / max(n, 1)
 
@@ -331,12 +351,19 @@ def main():
                                  max_offset_mm=CONFIG["max_offset_mm"], encoder=CONFIG["encoder"],
                                  pretrained=CONFIG["pretrained"]).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=CONFIG["learning_rate"], weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=8, factor=0.5, min_lr=1e-6)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=CONFIG.get("patience_lr", 8),
+                                                     factor=0.5, min_lr=1e-6)
+    # EMA of weights and BatchNorm buffers: validated and saved instead of the raw model
+    ema = (AveragedModel(model, multi_avg_fn=get_ema_multi_avg_fn(CONFIG["ema"]), use_buffers=True)
+           if CONFIG.get("ema", 0.0) > 0 else None)
+    if ema is not None:
+        print(f"EMA of the weights, decay {CONFIG['ema']} | crops shuffled: {CONFIG.get('mescola_crop', False)}")
 
     migliore, senza_miglioramento = float("inf"), 0
     for epoca in range(1, CONFIG["num_epochs"] + 1):
-        train_loss = train_un_epoca(model, train_loader, optimizer, device, CONFIG)
-        val_loss, prima, dopo = valida(model, val_loader, device, CONFIG)
+        train_loss = train_un_epoca(model, train_loader, optimizer, device, CONFIG, ema)
+        da_salvare = ema.module if ema is not None else model
+        val_loss, prima, dopo = valida(da_salvare, val_loader, device, CONFIG)
         scheduler.step(val_loss)
         migliorati = (dopo < prima).float().mean().item()
         print(f"Epoch {epoca:3d}/{CONFIG['num_epochs']} | Train: {train_loss:.4f} | Val: {val_loss:.4f} | "
@@ -346,7 +373,7 @@ def main():
             migliore, senza_miglioramento = val_loss, 0
             torch.save({
                 "epoca": epoca,
-                "model_state_dict": model.state_dict(),
+                "model_state_dict": da_salvare.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "val_loss": val_loss,
                 "config": CONFIG,

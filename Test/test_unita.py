@@ -580,6 +580,28 @@ def test_scala_del_ritaglio_e_bersaglio_coerenti():
     finally:
         tr.augmenta_crop = originale
 
+def test_variante_c_ema_e_niente_vicino_per_tessuti_molli():
+    import train_refine as tr
+    from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
+    cfg = dict(tr.CONFIG, **tr.VARIANTI["C"])
+    # soft tissue points never start on a neighbour landmark: uniform errors only
+    punti_mm = torch.zeros(1, 26, 2); masks = torch.zeros(1, 26)
+    punti_mm[0, 8] = torch.tensor([50.0, 50.0]); punti_mm[0, 25] = torch.tensor([55.0, 58.0]); masks[0, [8, 25]] = 1
+    b = torch.zeros(200, dtype=torch.long)
+    err = tr.errori_partenza(punti_mm, masks, b, torch.full((200,), 8), dict(cfg, prob_vicino=1.0),
+                             torch.Generator().manual_seed(0))
+    assert ((err - (punti_mm[0, 25] - punti_mm[0, 8])).norm(dim=1) > 2.5).float().mean() > 0.9
+    # the EMA (weights + BatchNorm buffers) runs on a model with BatchNorm and moves towards it
+    m = torch.nn.Sequential(torch.nn.Conv2d(1, 4, 3), torch.nn.BatchNorm2d(4))
+    ema = AveragedModel(m, multi_avg_fn=get_ema_multi_avg_fn(0.5), use_buffers=True)
+    ema.update_parameters(m)
+    m.train(); m(torch.randn(8, 1, 8, 8))
+    with torch.no_grad():
+        m[0].weight.add_(1.0)
+    ema.update_parameters(m)
+    assert torch.allclose(ema.module[0].weight, m[0].weight - 0.5, atol=1e-5)
+    assert torch.allclose(ema.module[1].running_mean, 0.5 * m[1].running_mean, atol=1e-5)
+
 
 if __name__ == "__main__":
     test = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
@@ -593,3 +615,4 @@ if __name__ == "__main__":
             print(f"FAIL  {nome}: {type(e).__name__}: {e}")
     print(f"\n{len(test) - falliti}/{len(test)} passed")
     sys.exit(1 if falliti else 0)
+

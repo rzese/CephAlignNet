@@ -50,7 +50,7 @@ def main(argv=None):
     ap.add_argument("--insieme", default="validation",
                     choices=["validation", "test", "test_aariz", "test_isbi1", "test_isbi2", "unife"],
                     help="evaluate step: images to evaluate on (test sets: official split only)")
-    ap.add_argument("--variante", choices=["base", "A", "B"],
+    ap.add_argument("--variante", choices=["base", "A", "B", "C"],
                     help="refine step: Stage 2 variant (see VARIANTI in train_refine.py; default: CONFIG)")
     a = ap.parse_args(argv)
 

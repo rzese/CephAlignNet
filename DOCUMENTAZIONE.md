@@ -540,6 +540,7 @@ il CONFIG (variante `base`).
 | `base` | `ImageRefinementNet` (da zero) | 25.6 mm, 128 px (0.2 mm/px) | 32×32 (0.8 mm) | errore uniforme 0.5–11 mm | — |
 | `A` | `ImageRefinementUNet`: resnet34 ImageNet + decoder U-Net | 38.4 mm, 256 px (0.15 mm/px) | 128×128 (0.3 mm) | errore uniforme 0.5–15 mm | scala del ritaglio ±10%, lr 3e-4, bf16 |
 | `B` | come A | come A | come A | come A, più 20% su un altro landmark entro 15 mm e 20% (punte dentali LPM, LIT, LMT, UIT) a un dente di distanza lungo il piano occlusale (7–11 mm) | come A |
+| `C` | come A | come A | come A | come B, ma i tessuti molli (Pn, Ls, Li, Pog`, Sn) non partono mai su un altro landmark | ritagli mescolati prima dei blocchi, EMA dei pesi (0.998), lr 1e-4, patience 60 (lr: 15) |
 
 Perché: sul validation lo Stage 2 `base` sporca i punti già giusti (errore mediano
 0.41 mm quando lo Stage 1 è sotto 0.5 mm: uscita a celle da 0.8 mm) e non corregge
@@ -561,9 +562,20 @@ sbagliate (dente accanto, landmark vicino) più che spostamenti casuali.
   evaluate` usa `<dir>/parametri_stage2.py` quando esiste.
 - I pesi di resnet34 vanno nella cache offline: `setup_leonardo.sh` li scarica.
 
+**Risultati di A e B** (Stage 1 di `esperimenti_crop`, validation): pipeline 1.02 mm
+(A) e 1.00 mm (B) contro 1.01 della `base`; sui test e su UNIFE B migliora di pochi
+centesimi, A peggiora su ISBI. Lo Stage 2 da solo resta peggiore dello Stage 1
+(A 1.39, B 1.23 contro 1.07). Nei log l'errore di validation oscilla tra 1.2 e 5 mm da
+un'epoca all'altra mentre la loss di training scende regolare: i ritagli sono in ordine
+immagine per immagine, quindi ogni blocco da 128 contiene ~5 immagini e le statistiche
+della BatchNorm saltano; il checkpoint è un'epoca "fortunata" (A: 7, B: 21). Con B
+inoltre Pn veniva tirato verso Sn dalle partenze sul landmark vicino (Stage 2 da solo
+0.83 → 2.95 mm). La variante `C` corregge questi punti.
+
 ```bash
 sbatch --export=ALL,VARIANTE=A,DIR=esperimenti_s2/A run_stage2_leonardo.slurm
 sbatch --export=ALL,VARIANTE=B,DIR=esperimenti_s2/B run_stage2_leonardo.slurm
+sbatch --export=ALL,VARIANTE=C,DIR=esperimenti_s2/C run_stage2_leonardo.slurm
 ```
 
 Entrambi usano lo Stage 1 di `esperimenti_crop/probabilistic` (`STAGE1_DA`).
@@ -627,7 +639,7 @@ Tutti gli script vanno eseguiti dalla root della repo con `PYTHONPATH=.`.
 
 | File | Cosa fa |
 |---|---|
-| `test_unita.py` | **27 test automatici** su dati sintetici, senza dataset né GPU: rotazione TTA, coerenza di `augmenta`, griglia pixel, regression voting, sigma addestrabile, loss NLL, momenti della heatmap, conversione in mm, vincoli geometrici, Stage 2 e guardia, Stage 2 U-Net e caricamento, partenze difficili e scala dei ritagli, split, scala dei Tracciati, calibrazione conforme. Si lancia con `PYTHONPATH=. python Test/test_unita.py`, oppure con `pytest`. |
+| `test_unita.py` | **28 test automatici** su dati sintetici, senza dataset né GPU: rotazione TTA, coerenza di `augmenta`, griglia pixel, regression voting, sigma addestrabile, loss NLL, momenti della heatmap, conversione in mm, vincoli geometrici, Stage 2 e guardia, Stage 2 U-Net e caricamento, partenze difficili e scala dei ritagli, split, scala dei Tracciati, calibrazione conforme. Si lancia con `PYTHONPATH=. python Test/test_unita.py`, oppure con `pytest`. |
 | `verifica_mappatura_isbi.py` | Salva alcune immagini ISBI con i 19 punti etichettati secondo le due mappature, per scegliere quella giusta |
 | `test_caricamento tracciati.py` | Legge ogni caso dei Tracciati e riporta quanti landmark riconosce |
 | `test.py`, `test_isbi.py`, `test_datasets.py`, `test_tracciati.py` | Visualizzazione di un campione; aggiornati all'interfaccia attuale dei dataset |
