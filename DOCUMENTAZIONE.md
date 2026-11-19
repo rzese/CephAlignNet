@@ -572,6 +572,16 @@ della BatchNorm saltano; il checkpoint è un'epoca "fortunata" (A: 7, B: 21). Co
 inoltre Pn veniva tirato verso Sn dalle partenze sul landmark vicino (Stage 2 da solo
 0.83 → 2.95 mm). La variante `C` corregge questi punti.
 
+**Risultati di C**: la validation ora scende regolare (niente più salti), ma ha il minimo
+all'epoca ~30 e poi risale mentre la loss di training continua a scendere (overfitting).
+Pipeline: validation 1.03 mm / 88.1%, Aariz 1.06, ISBI1 1.24, ISBI2 1.43, UNIFE 1.87:
+peggio di `base` e di B. Lo Stage 2 da solo su ISBI ha errori sistematici per landmark
+(Me, Gn, Sn spostati di 3–7 mm in media), quindi generalizza male fuori da Aariz. Le
+"epoche fortunate" di B non erano solo rumore della BatchNorm: con 820 immagini la
+U-Net con resnet34 impara presto e poi si specializza sul training. Per l'articolo resta
+la `base`: B le è pari entro il rumore (test: Aariz 1.03 contro 1.05, ISBI1 1.11 contro
+1.11, ISBI2 1.34 contro 1.33, UNIFE 1.84 contro 1.85) e la `base` è più piccola e più semplice.
+
 ```bash
 sbatch --export=ALL,VARIANTE=A,DIR=esperimenti_s2/A run_stage2_leonardo.slurm
 sbatch --export=ALL,VARIANTE=B,DIR=esperimenti_s2/B run_stage2_leonardo.slurm
