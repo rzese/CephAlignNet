@@ -28,7 +28,7 @@ CONFIG = {
     "num_epochs":      600,        # more epochs: more data, slower convergence
     "learning_rate":   3e-5,
     "val_split":       0.2,
-    "save_path":       "modello_heatmap.pth",
+    "save_path":       "../no_unife/modello_heatmap.pth",
     "patience":        60,         # more patience for difficult landmarks
     "geo_loss_weight": 0.05,       # weight of the geometric consistency loss
 }
